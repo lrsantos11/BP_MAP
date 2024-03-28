@@ -1,11 +1,11 @@
-# BP_MAP
+# BP MAP
 
 This code base is using the [Julia Language](https://julialang.org/) and
 [DrWatson](https://juliadynamics.github.io/DrWatson.jl/stable/)
 to make a reproducible scientific project named
 > BP_MAP
 
-It is authored by Luiz-Rafael Santos, Paulo J. S. Silva, Roger Behling, Yunier Bello-Cruz.
+It is authored by Luiz-Rafael Santos, Paulo J. S. Silva, Roger Behling, and Yunier Bello-Cruz.
 
 To (locally) reproduce this project, do the following:
 

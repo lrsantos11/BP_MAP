@@ -1,5 +1,5 @@
 # author: LRS
-include(scr("MAP_utils.jl"))
+include(srcdir("MAP_utils.jl"))
 
 """
 Using the Method of Alternating Projections for the Basis Pursuit problem
@@ -11,8 +11,7 @@ BP_MAP(Affine; itmax=100, EPSVAL=1e-6, verbose=true, x₀=Float64[], kwargs...) 
 function BP_MAP(Affine;
     itmax::Int=100,
     ε::Number=1e-6,
-    ε_MAP::Number=1e-6,
-    verbose::Bool=true,
+    verbose::Bool=false,
     x₀::Vector{Float64}=Float64[],
     BP_solution::Vector{Float64}=Float64[],
     kwargs...)
@@ -30,16 +29,18 @@ function BP_MAP(Affine;
     it = 0
     inner_it_total = 0
     status = :Tired
+    tolBP = 1.0
     while !(solved || tired)
         radius += distance
         BallL1 = IndBallL1(radius)
         Proj_BallL1(x) = ProjectIndicator(BallL1, x)
-        zMAP, inner_it, _ = MAP(xMAP, ProjAffine, Proj_BallL1, itmax=itmax, ε=ε_MAP, kwargs...)
+        zMAP, inner_it, _ = MAP(xMAP, ProjAffine, Proj_BallL1, itmax=itmax, kwargs...)
         inner_it_total += inner_it
         xMAP = ProjAffine(zMAP)
-        BP_solution_given ? distance = norm(xMAP - BP_solution, 2) :  distance = norm(xMAP - zMAP, 2)
+        distance = norm(xMAP - zMAP, 2)
+        BP_solution_given ? tolBP = norm(xMAP - BP_solution, 2) : tolBP = distance
         it += 1
-        solved = distance < EPSVAL
+        solved = tolBP < ε
         if solved
             verbose && @info "solved"
             verbose && @info "it = $it"

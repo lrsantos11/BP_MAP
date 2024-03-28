@@ -40,8 +40,8 @@ end
     Method of Alternating Projections
 """
 function MAP(x₀::Vector, ProjectA::Function, ProjectB::Function;
-    ε::Float64=1e-6,
-    itmax::Int=100,
+    ε_MAP::Float64=1e-6,
+    itmax_MAP::Int=100,
     xSol::Vector=[])
     solution_given = !isempty(xSol)
     iter = 0
@@ -49,13 +49,14 @@ function MAP(x₀::Vector, ProjectA::Function, ProjectB::Function;
     ProjA = ProjectA(xMAP)
     solved = false
     tired  =  false
+    tolMAP = 1.0
     while !(solved || tired)
         MAP_iteration!(xMAP, ProjA, ProjectB)    
         ProjA = ProjectA(xMAP)
         solution_given ? tolMAP = norm(xMAP - xSol, Inf) : tolMAP = norm(ProjA - xMAP, Inf)
-        solved = tolMAP < ε
+        solved = tolMAP < ε_MAP
         iter += 1
-        tired = iter >= itmax
+        tired = iter >= itmax_MAP
     end
     return xMAP, iter, tolMAP
 end
