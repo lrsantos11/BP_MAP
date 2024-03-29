@@ -4,6 +4,9 @@ authors = ["Luiz-Rafael Santos", "Paulo J. S. Silva", "Roger Behling", "Yunier B
 [deps]
 Downloads = "f43a241f-c20a-4ad4-852c-f6b1247861c6"
 DrWatson = "634d3b9d-ee7a-5ddf-bec9-22491ea816e1"
+HiGHS = "87dc4568-4c63-4d18-b0c0-bb2238e4078b"
+JuMP = "4076af6c-e467-56ae-b986-b466b2749572"
+MAT = "23992714-dd62-5051-b70f-ba57cb901cac"
 ProgressBars = "49802e3a-d2f1-5c88-81d8-b72133a6f568"
 ProximalOperators = "a725b495-10eb-56fe-b38b-717eba820537"
 
