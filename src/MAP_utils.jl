@@ -42,21 +42,35 @@ end
 function MAP(x₀::Vector, ProjectA::Function, ProjectB::Function;
     ε_MAP::Float64=1e-6,
     itmax_MAP::Int=100,
-    xSol::Vector=[])
+    xSol::Vector=[],
+    verbose::Bool=false)
     solution_given = !isempty(xSol)
     iter = 0
     xMAP = x₀
     ProjA = ProjectA(xMAP)
+    dist_AB = norm(ProjA - xMAP, 2)
     solved = false
     tired  =  false
     tolMAP = 1.0
+    status = :IterMax
     while !(solved || tired)
         MAP_iteration!(xMAP, ProjA, ProjectB)    
         ProjA = ProjectA(xMAP)
-        solution_given ? tolMAP = norm(xMAP - xSol, Inf) : tolMAP = norm(ProjA - xMAP, Inf)
-        solved = tolMAP < ε_MAP
         iter += 1
+        # Check for infeasibility
+        dist_AB_Old = dist_AB
+        dist_AB = norm(ProjA - xMAP, 2)
+        tol_dist = abs(dist_AB - dist_AB_Old)
+        infeasible = tol_dist < ε_MAP
+        if infeasible 
+            status = :Infeasible
+            break
+        end
+        solution_given ? tolMAP = norm(xMAP - xSol, Inf) : tolMAP = norm(ProjA - xMAP, Inf)       
+        solved = tolMAP < ε_MAP
+        solved && (status = :Solved) 
         tired = iter >= itmax_MAP
     end
-    return xMAP, iter, tolMAP
+    verbose && @info "Inner MAP: Status $status"
+    return xMAP, iter, status
 end
