@@ -26,7 +26,9 @@ function readl1test(filename)
         @error "Test file does not exist"
     end
 
+    # Read the actual data
     data = matread(filename)
+
     # The solution is represented as a one column matrix. Get the respective vector instead.
     return BPProblem(data["A"], data["b"][:, 1], data["x"][:, 1])
 end
