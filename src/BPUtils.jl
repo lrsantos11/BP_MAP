@@ -2,7 +2,7 @@
 Utilities for Basis Pursuit problems.
 """
 
-module BPUtils 
+@reexport module BPUtils 
 
 using ..BP
 

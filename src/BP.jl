@@ -1,12 +1,14 @@
 """
-Defines the Basis Porsuit problem type (BPProblem) and auxiliary functions.
+Defines the Basis Pursuit problem type (BPProblem) and auxiliary functions.
 """
 module BP
 
-using LinearAlgebra
+using Reexport
+@reexport using LinearAlgebra, ProximalOperators
+
 
 export BPProblem
-export readl1test, solvewithLP
+# export readl1test, solvewithLP
 
 """
 A Basis Pursuit problem data: ``\\min_x \\| x \\|_1`` s.t. ``Ax = b``
@@ -63,6 +65,14 @@ function BPProblem(A, b)
     return BPProblem(A, b, sol, optval)
 end
 
+"Construct a BPproblem from a solution and a matrix"
+function BPProblem(sol::AbstractVector{T}, A::AbstractMatrix{T}) where {T<:AbstractFloat}
+    b = A * sol
+    optval = norm(sol, 1)
+    return BPProblem(A, b, sol, optval)
+end
+
+
 "Construct a BPProblem computing the optimal value from the given solution"
 BPProblem(A, b, sol::AbstractVector) = BPProblem(A, b, sol, norm(sol, 1))
 
@@ -73,6 +83,8 @@ function BPProblem(A, b, optval::AbstractFloat)
     sol = fill(Tnan, n)
     return BPProblem(A, b, sol, optval)
 end
+
+
 
 include("BPUtils.jl")
 using .BPUtils
