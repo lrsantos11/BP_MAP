@@ -16,12 +16,12 @@ export readl1test, solvewithLP
 "Read a test from the Lorentz, Pfetsch, and Tillmann testset"
 function readl1test(filename)
     # Verify if the test is available
-    dir = datadir("exp_raw", "L1_Testset_mat")
-    if !isdir(dir)
-        println(dir)
-        @error "Test set is not available"
-    end
-    filename = joinpath(dir, filename)
+    # dir = datadir("exp_raw", "L1_Testset_mat")
+    # if !isdir(dir)
+    #     println(dir)
+    #     @error "Test set is not available"
+    # end
+    # filename = joinpath(dir, filename)
     if !isfile(filename)
         @error "Test file does not exist"
     end

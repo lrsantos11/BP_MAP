@@ -8,7 +8,6 @@ using Reexport
 
 import ProximalOperators: IndAffine
 export BPProblem, IndAffine
-# export readl1test, solvewithLP
 
 """
 A Basis Pursuit problem data: ``\\min_x \\| x \\|_1`` s.t. ``Ax = b``
@@ -53,6 +52,7 @@ struct BPProblem{T<:AbstractFloat}
         new{T}(A, b, sol, optval)
     end
 end
+
 
 "Construct a BPproblem without a solution or optimal value"
 function BPProblem(A, b)

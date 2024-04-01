@@ -2,11 +2,14 @@ name = "BP_MAP"
 authors = ["Luiz-Rafael Santos", "Paulo J. S. Silva", "Roger Behling", "Yunier Bello-Cruz"]
 
 [deps]
+BenchmarkTools = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
 Downloads = "f43a241f-c20a-4ad4-852c-f6b1247861c6"
 DrWatson = "634d3b9d-ee7a-5ddf-bec9-22491ea816e1"
+Glob = "c27321d9-0574-5035-807b-f59d2c89b15c"
 HiGHS = "87dc4568-4c63-4d18-b0c0-bb2238e4078b"
 JuMP = "4076af6c-e467-56ae-b986-b466b2749572"
 MAT = "23992714-dd62-5051-b70f-ba57cb901cac"
+MKL = "33e6dc65-8f57-5167-99aa-e5a354878fb2"
 ProgressBars = "49802e3a-d2f1-5c88-81d8-b72133a6f568"
 ProximalOperators = "a725b495-10eb-56fe-b38b-717eba820537"
 Reexport = "189a3867-3050-52da-a836-e630ba90ab69"

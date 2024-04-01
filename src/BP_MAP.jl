@@ -12,13 +12,14 @@ function BP_MAP(Affine;
     itmax::Int=100,
     ε::Number=1e-6,
     verbose::Bool=false,
-    x₀::Vector{Float64}=Float64[],
-    BP_solution::Vector{Float64}=Float64[],
+    x₀::AbstractVector = [],
+    BP_solution::AbstractVector = [],
     kwargs...)
     m, n = size(Affine.A)
+    Ta = eltype(Affine.A)
     ProjAffine(x) = ProjectIndicator(Affine, x)
     if isempty(x₀)
-        x₀ = zeros(n)
+        x₀ = zeros(Ta,n)
     end
     BP_solution_given = !isempty(BP_solution)
     xMAP = ProjAffine(x₀)
@@ -34,13 +35,19 @@ function BP_MAP(Affine;
         radius += distance
         BallL1 = IndBallL1(radius)
         Proj_BallL1(x) = ProjectIndicator(BallL1, x)
-        zMAP, inner_it, _ = MAP(xMAP, ProjAffine, Proj_BallL1, itmax_MAP = itmax, verbose = verbose, kwargs...)
-        inner_it_total += inner_it
+        zMAP, inner_it, inner_status = MAP(xMAP, ProjAffine, Proj_BallL1, itmax_MAP = itmax, verbose = verbose, kwargs...)
         xMAP = ProjAffine(zMAP)
+        it += 1        
+        inner_it_total += inner_it
         distance = norm(xMAP - zMAP, 2)
+        if inner_status == :Solved 
+            @info "Inner Solved" 
+            @info "Distance = $distance"
+            status = :Solved
+            break
+        end
         BP_solution_given ? tolBP = norm(xMAP - BP_solution, 2) : tolBP = distance
-        it += 1
-        solved = tolBP < ε
+        solved = ((tolBP < ε) || (distance < ε))
         if solved
             verbose && @info "solved"
             verbose && @info "it = $it"

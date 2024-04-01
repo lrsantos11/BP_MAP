@@ -30,8 +30,8 @@ function dowload_l1testset()
     # Avoid downloading multiple times
     destdir = datadir("exp_raw", "L1_Testset_mat")
     if isdir(destdir)
-        @warn destdir * " already exists, aborting."
-        exit(1)
+        @info destdir * " already exists, so no download is necessary."
+        return nothing
     end
 
     # Create a progress bar as the download is long

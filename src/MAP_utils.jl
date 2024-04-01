@@ -39,10 +39,10 @@ end
 
     Method of Alternating Projections
 """
-function MAP(x₀::Vector, ProjectA::Function, ProjectB::Function;
+function MAP(x₀::AbstractArray, ProjectA::Function, ProjectB::Function;
     ε_MAP::Float64=1e-6,
     itmax_MAP::Int=100,
-    xSol::Vector=[],
+    xSol::AbstractArray=[],
     verbose::Bool=false)
     solution_given = !isempty(xSol)
     iter = 0
@@ -71,6 +71,6 @@ function MAP(x₀::Vector, ProjectA::Function, ProjectB::Function;
         solved && (status = :Solved) 
         tired = iter >= itmax_MAP
     end
-    verbose && @info "Inner MAP: Status $status"
+    verbose && @info "MAP: Status $status"
     return xMAP, iter, status
 end
