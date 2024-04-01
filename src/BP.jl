@@ -29,7 +29,7 @@ struct BPProblem{T<:AbstractFloat}
     """
         BPProblem(A, b, sol, optval)
 
-    Construct a BPProblem checking dimensions.
+    Construct a BPProblem checking dimensions and enforcing a single eltype.
     """
     function BPProblem(
         A::AbstractMatrix{T},
