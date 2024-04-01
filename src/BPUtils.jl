@@ -6,9 +6,7 @@ module BPUtils
 
 using ..BP
 
-using DrWatson
-@quickactivate "BP_MAP"
-
+using LinearAlgebra
 using JuMP
 using HiGHS
 using MAT

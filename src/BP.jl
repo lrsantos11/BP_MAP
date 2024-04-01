@@ -1,10 +1,7 @@
 """
-Defines the Basis Porsuit peoblem type (BPProblem) and auxliary functions.
+Defines the Basis Porsuit problem type (BPProblem) and auxiliary functions.
 """
 module BP
-
-using DrWatson
-@quickactivate "BP_MAP"
 
 using LinearAlgebra
 
