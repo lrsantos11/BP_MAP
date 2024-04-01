@@ -6,8 +6,8 @@ module BP
 using Reexport
 @reexport using LinearAlgebra, ProximalOperators
 
-
-export BPProblem
+import ProximalOperators: IndAffine
+export BPProblem, IndAffine
 # export readl1test, solvewithLP
 
 """
@@ -72,6 +72,10 @@ function BPProblem(sol::AbstractVector{T}, A::AbstractMatrix{T}) where {T<:Abstr
     return BPProblem(A, b, sol, optval)
 end
 
+"Construct a IndAffine from ProximalOperators.jl using a BPProblem"
+function IndAffine(prob::BPProblem)
+    return IndAffine(prob.A, prob.b)
+end
 
 "Construct a BPProblem computing the optimal value from the given solution"
 BPProblem(A, b, sol::AbstractVector) = BPProblem(A, b, sol, norm(sol, 1))

@@ -5,7 +5,7 @@ using DrWatson, Test
 include(srcdir("BP.jl"))
 include(srcdir("BP_MAP.jl"))
 
-using BP
+using .BP
 
 @testset "Example B1 [HL2014]" begin 
 ##
@@ -20,10 +20,9 @@ using BP
         1.0 -1.0 -1.0 1.0 1.0 -1.0 -1.0 1
         1.0 -1.0 1.0 -1.0 -1.0 1.0 -1.0 1
     ] ./ sqrt(8)
-    m, n = size(A)
     xsol = [10.0, 0, 0, 0, 0, 0, 0, 0]
-    b = A * xsol
-    Affine = IndAffine(A, b)
+    probHL14 = BPProblem(xsol, A)
+    Affine = IndAffine(probHL14)
     tol = 1e-6
     xMAP, it, inner_it, status = BP_MAP(Affine, itmax=itmax, ε=tol, BP_solution = xsol, verbose = true)
     @test norm(xMAP - xsol, 2) < tol
