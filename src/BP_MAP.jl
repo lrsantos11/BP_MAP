@@ -11,6 +11,7 @@ BP_MAP(Affine; itmax=100, ε=1e-6, verbose=false, x₀=Float64[], kwargs...) →
 function BP_MAP(Affine;
     itmax::Int=100,
     ε::Number=1e-6,
+    ε_MAP::Number=1e-6,
     verbose::Bool=false,
     x₀::AbstractVector = [],
     BP_solution::AbstractVector = [],
@@ -35,14 +36,14 @@ function BP_MAP(Affine;
         radius += distance
         BallL1 = IndBallL1(radius)
         Proj_BallL1(x) = ProjectIndicator(BallL1, x)
-        zMAP, inner_it, inner_status = MAP(xMAP, ProjAffine, Proj_BallL1, itmax_MAP = itmax, verbose = verbose, kwargs...)
+        zMAP, inner_it, inner_status = MAP(xMAP, ProjAffine, Proj_BallL1, itmax_MAP = itmax, verbose = verbose, ε_MAP = ε_MAP, kwargs...)
         xMAP = ProjAffine(zMAP)
         it += 1        
         inner_it_total += inner_it
         distance = norm(xMAP - zMAP, 2)
         if inner_status == :Solved 
-            @info "Inner Solved" 
-            @info "Distance = $distance"
+            verbose && @info "Inner Solved" 
+            verbose && @info "Distance = $distance"
             status = :Solved
             break
         end

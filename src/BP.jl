@@ -4,7 +4,7 @@ Defines the Basis Pursuit problem type (BPProblem) and auxiliary functions.
 module BP
 
 using Reexport
-@reexport using LinearAlgebra, ProximalOperators
+@reexport using LinearAlgebra, ProximalOperators, SparseArrays
 
 import ProximalOperators: IndAffine
 export BPProblem, IndAffine

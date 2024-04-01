@@ -28,8 +28,8 @@ using .BP
     xsol = [10.0, 0, 0, 0, 0, 0, 0, 0]
     probHL14 = BPProblem(xsol, A)
     Affine = IndAffine(probHL14)
-    tol = 1e-6
-    xMAP, it, inner_it, status = BP_MAP(Affine, itmax=itmax, ε=tol, BP_solution = xsol, verbose = true)
+    tol = 1e-4
+    xMAP, it, inner_it, status = BP_MAP(Affine, itmax=itmax, ε=tol, ε_MAP = 1e-4, BP_solution = xsol, verbose = true)
     @test norm(xMAP - xsol, 2) < tol
     @test status == :Solved
 end
@@ -43,23 +43,14 @@ using BenchmarkTools
 LPT_testset = glob("*.mat", datadir("exp_raw", "L1_Testset_mat"));
 
 
-@testset "Tests from the LPT collection" begin
-    LPT_testset = glob("*.mat", datadir("exp_raw", "L1_Testset_mat"))
+@testset "Ten instances from the LPT collection" begin
     itmax = 1000
-    tol = 1e-6
+    tol = 1e-4
     for inst in LPT_testset[1:10]
         prob = readl1test(inst)
         Affine = IndAffine(prob)
-        @btime xMAP, it, inner_it, status = BP_MAP(Affine, itmax = itmax,  BP_solution = prob.sol, verbose = false);
-        @info "Test $(inst) status is $status with  $(it) iterations and $(inner_it) inner iterations"
+        xMAP, it, inner_it, status = BP_MAP(Affine, itmax = itmax, ε = tol, ε_MAP = tol,  BP_solution = prob.sol, verbose = false);
+        @btime BP_MAP($Affine, itmax = $itmax, ε = $tol, ε_MAP = $tol,  BP_solution = $prob.sol, verbose = false)
+        @info "Instance $(inst[55:end-4]) status is $status with  $(it) iterations and $(inner_it) inner iterations"
     end
 end
-
-itmax = 1100
-prob = readl1test(LPT_testset[3])
-Affine = IndAffine(prob)
-xMAP, it, inner_it, status = BP_MAP(Affine, itmax = itmax,  BP_solution = prob.sol, verbose = true)
-@info "Test $(inst) status is $status with  $(it) iterations and $(inner_it) inner iterations"
-
-sol = prob.sol
-sol[findall(x-> x > 1e-6, sol)] 

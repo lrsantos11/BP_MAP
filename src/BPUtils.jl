@@ -7,14 +7,15 @@ Utilities for Basis Pursuit problems.
 using ..BP
 
 using LinearAlgebra
+using SparseArrays
 using JuMP
 using HiGHS
 using MAT
 
-export readl1test, solvewithLP
+export readl1test, solvewithLP, heuristic_optimality_check
 
 "Read a test from the Lorentz, Pfetsch, and Tillmann testset"
-function readl1test(filename)
+function readl1test(filename; sparse_matrix::Bool=false)
     # Verify if the test is available
     # dir = datadir("exp_raw", "L1_Testset_mat")
     # if !isdir(dir)
@@ -28,9 +29,14 @@ function readl1test(filename)
 
     # Read the actual data
     data = matread(filename)
+    if sparse_matrix
+        A = sparse(data["A"])
+    else
+        A = data["A"]
+    end
 
     # The solution is represented as a one column matrix. Get the respective vector instead.
-    return BPProblem(data["A"], data["b"][:, 1], data["x"][:, 1])
+    return BPProblem(A, data["b"][:], data["x"][:])
 end
 
 "Solve a BPProblem using a regular linear programming solver"
@@ -49,5 +55,33 @@ function solvewithLP(prob::BPProblem, Solver = HiGHS)
     @assert termination_status(model) == OPTIMAL
     return value.(xplus) - value.(xminus)
 end
+
+
+"""
+    Heuristic for optimality Check from [Lorenz2014, Alg. 2]
+
+"""
+function heuristic_optimality_check(xSol, Affine; δ::AbstractFloat = 1e-4, tol::AbstractFloat = 1e-12)
+    T = eltype(xSol)
+    m, n = size(Affine.A)
+    b = @views Affine.b
+    A = @views Affine.A
+    S = findall(x -> abs(x) > δ, xSol) # [Lorenz2014, Eq. (1)]
+    Aₛ = @views A[:, S]
+    xSolₛ = @views xSol[S]
+    ## TODO: Improve with CG instead of "small" QR (See [Lorenz2014, pg. 4])
+    F = qr(Aₛ)
+    w = F' \ sign.(xSolₛ)
+    if isapprox(norm(A'w, Inf), one(T), atol = tol)
+        xSol .= 0.0
+        ldiv!(xSolₛ, F, b)
+        norm_xSol_1 = norm(xSol, 1)
+        if isapprox((norm_xSol_1 - dot(w, b))/ norm_xSol_1, zero(T), atol = tol)
+            return sparse(xSol), :success
+        end
+    end
+    return xSol, :failure
+end
+
 
 end
