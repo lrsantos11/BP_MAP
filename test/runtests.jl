@@ -2,9 +2,10 @@ using DrWatson, Test
 @quickactivate "BP_MAP"
 
 # Here you include files using `srcdir`
+include(srcdir("BP.jl"))
 include(srcdir("BP_MAP.jl"))
 
-
+using BP
 
 @testset "Example B1 [HL2014]" begin 
 ##
