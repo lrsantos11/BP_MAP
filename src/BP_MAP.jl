@@ -9,7 +9,7 @@ s.t. Ax = b
 BP_MAP(Affine; itmax=100, ε=1e-6, verbose=false, x₀=Float64[], kwargs...) → xMAP, it, inner_it, status
 """
 function BP_MAP(Affine;
-    itmax::Int=100,
+    itmax::Int=1000,
     ε::Number=1e-6,
     ε_MAP::Number=1e-6,
     verbose::Bool=false,

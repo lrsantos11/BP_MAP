@@ -40,10 +40,13 @@ function readl1test(filename; sparse_matrix::Bool=false)
 end
 
 "Solve a BPProblem using a regular linear programming solver"
-function solvewithLP(prob::BPProblem, Solver = HiGHS)
+function solvewithLP(prob::BPProblem; Solver = HiGHS)
 
     # Create a LP model that represents the basis pursuit problem
     model = Model(Solver.Optimizer)
+    set_optimizer_attribute(model, "log_to_console", false)
+    set_optimizer_attribute(model, "OutputFlag",  0)
+
     m, n = size(prob.A)
     @variable(model, xplus[1:n] >= 0)
     @variable(model, xminus[1:n] >= 0)
