@@ -22,7 +22,14 @@ using LinearAlgebra
     probB1_HL14 = BPProblem(sol, A)
     Affine = IndAffine(probB1_HL14)
     tol = 1e-3
-    xMAP, it, inner_it, status = BP_MAP(Affine, itmax=itmax, ε = tol, ε_MAP = tol, BP_solution = sol, verbose = true)
+    xMAP, it, inner_it, status = BP_MAP(
+        Affine,
+        itmax = itmax,
+        ε = tol,
+        ε_MAP = tol,
+        BP_solution = sol,
+        verbose = true,
+    )
     @info "BP-MAP status is $status with  $(it) iterations and $(inner_it) inner iterations"
     @info "xMAP - sol = $(norm(xMAP - sol, 2))"
     @test status == :Solved
@@ -32,7 +39,6 @@ using LinearAlgebra
     @info "xSol - sol = $(norm(xSol - sol, 2))"
     @test xSol ≈ sol
 end
-
 
 ##
 @testset "Example B2 [HL2014]" begin
@@ -46,16 +52,11 @@ end
     b = [-5.0, 5]
     prob_B2_HL14 = BPProblem(A, b)
     # This problem has infinite solutions. BPMAP is converging to one of them.  
-    sol = [-10/3, 10/3, -10/3]
+    sol = [-10 / 3, 10 / 3, -10 / 3]
     Affine = IndAffine(prob_B2_HL14)
     tol = 1e-3
-    xMAP, it, inner_it, status = BP_MAP(
-        Affine,
-        itmax = itmax,
-        ε = tol,
-        ε_MAP = tol,
-        verbose = false,
-    )
+    xMAP, it, inner_it, status =
+        BP_MAP(Affine, itmax = itmax, ε = tol, ε_MAP = tol, verbose = false)
     @info "BP-MAP status is $status with  $(it) iterations and $(inner_it) inner iterations"
     @info "Solution not unique. Not calling HOC here"
     @info "xMAP - sol = $(norm(xMAP - sol, 2))"
@@ -63,8 +64,6 @@ end
     @test xMAP ≈ sol
 
 end
-
-
 
 ##
 "Downloads Tests from from the Lorentz, Pfetsch, and Tillmann collection"
@@ -94,7 +93,13 @@ LPT_testset = glob("*.mat", datadir("exp_raw", "L1_Testset_mat"));
         @info "Elapsed CPU time for BP_MAP + HOC"
         @btime begin
             affine = IndAffine($prob)
-            solveBP_MAP(IndAffine($prob), itmax = $itmax, ε = $tol, ε_MAP = $tol, verbose = false)
+            solveBP_MAP(
+                IndAffine($prob),
+                itmax = $itmax,
+                ε = $tol,
+                ε_MAP = $tol,
+                verbose = false,
+            )
             heuristic_optimality_check($xMAP, affine, δ = $tol)
         end
         @info "Elapsed CPU time for solving with LP Solver"
