@@ -1,7 +1,10 @@
 using DrWatson, Test
 @quickactivate :BP_MAP
 
-using MKL
+if occursin("Intel", Sys.cpu_info()[1].model)
+    using MKL
+end
+
 using LinearAlgebra
 
 ##
