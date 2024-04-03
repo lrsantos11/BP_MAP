@@ -1,7 +1,6 @@
-using LinearAlgebra, SparseArrays
-using ProximalOperators
+import ProximalOperators: prox
 
-
+export ProjectIndicator, MAP
 
 """
     ProjectIndicator
@@ -21,9 +20,7 @@ end
 
 Computes a MAP iteration
 """
-function MAP_iteration!(xMAP::AbstractArray,
-                        ProjA::AbstractArray,
-                        ProjectB::Function)
+function MAP_iteration!(xMAP::AbstractArray, ProjA::AbstractArray, ProjectB::Function)
     xMAP .= ProjectB(ProjA)
     return nothing
 end
@@ -39,22 +36,26 @@ end
 
     Method of Alternating Projections
 """
-function MAP(x₀::AbstractArray, ProjectA::Function, ProjectB::Function;
-    ε_MAP::Float64=1e-6,
-    itmax_MAP::Int=100,
-    xSol::AbstractArray=[],
-    verbose::Bool=false)
+function MAP(
+    x₀::AbstractArray,
+    ProjectA::Function,
+    ProjectB::Function;
+    ε_MAP::Float64 = 1e-6,
+    itmax_MAP::Int = 100,
+    xSol::AbstractArray = [],
+    verbose::Bool = false,
+)
     solution_given = !isempty(xSol)
     iter = 0
     xMAP = x₀
     ProjA = ProjectA(xMAP)
     dist_AB = norm(ProjA - xMAP, 2)
     solved = false
-    tired  =  false
+    tired = false
     tolMAP = 1.0
     status = :IterMax
     while !(solved || tired)
-        MAP_iteration!(xMAP, ProjA, ProjectB)    
+        MAP_iteration!(xMAP, ProjA, ProjectB)
         ProjA = ProjectA(xMAP)
         iter += 1
         # Check for infeasibility
@@ -62,13 +63,13 @@ function MAP(x₀::AbstractArray, ProjectA::Function, ProjectB::Function;
         dist_AB = norm(ProjA - xMAP, 2)
         tol_dist = abs(dist_AB - dist_AB_Old)
         infeasible = tol_dist < ε_MAP
-        if infeasible 
+        if infeasible
             status = :Infeasible
             break
         end
-        solution_given ? tolMAP = norm(xMAP - xSol, Inf) : tolMAP = norm(ProjA - xMAP, Inf)       
+        solution_given ? tolMAP = norm(xMAP - xSol, Inf) : tolMAP = norm(ProjA - xMAP, Inf)
         solved = tolMAP < ε_MAP
-        solved && (status = :Solved) 
+        solved && (status = :Solved)
         tired = iter >= itmax_MAP
     end
     verbose && @info "MAP: Status $status"

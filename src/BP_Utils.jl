@@ -1,13 +1,11 @@
-"""
-Defines the Basis Pursuit problem type (BPProblem) and auxiliary functions.
-"""
-module BP
-
-using Reexport
-@reexport using LinearAlgebra, ProximalOperators, SparseArrays
-
+# Utilities for Basis Pursuit problems.
+using DrWatson
+using LinearAlgebra
+using SparseArrays
+using MAT
 import ProximalOperators: IndAffine
-export BPProblem, IndAffine
+
+export BPProblem, IndAffine, readl1test, heuristic_optimality_check
 
 """
 A Basis Pursuit problem data: ``\\min_x \\| x \\|_1`` s.t. ``Ax = b``
@@ -72,11 +70,6 @@ function BPProblem(sol::AbstractVector{T}, A::AbstractMatrix{T}) where {T<:Abstr
     return BPProblem(A, b, sol, optval)
 end
 
-"Construct a IndAffine from ProximalOperators.jl using a BPProblem"
-function IndAffine(prob::BPProblem)
-    return IndAffine(prob.A, prob.b)
-end
-
 "Construct a BPProblem computing the optimal value from the given solution"
 BPProblem(A, b, sol::AbstractVector) = BPProblem(A, b, sol, norm(sol, 1))
 
@@ -88,9 +81,58 @@ function BPProblem(A, b, optval::AbstractFloat)
     return BPProblem(A, b, sol, optval)
 end
 
+"Construct a IndAffine from ProximalOperators.jl using a BPProblem"
+function IndAffine(prob::BPProblem)
+    return IndAffine(prob.A, prob.b)
+end
 
+"Read a test from the Lorentz, Pfetsch, and Tillmann testset"
+function readl1test(filename; sparse_matrix::Bool=false)
+    # Verify if the test is available
+    dir = datadir("exp_raw", "L1_Testset_mat")
+    if !isdir(dir)
+        println(dir)
+        @error "Test set is not available"
+    end
+    filename = joinpath(dir, filename)
+    if !isfile(filename)
+        @error "Test file does not exist"
+    end
 
-include("BPUtils.jl")
-using .BPUtils
+    # Read the actual data
+    data = matread(filename)
+    if sparse_matrix
+        A = sparse(data["A"])
+    else
+        A = data["A"]
+    end
 
+    # The solution is represented as a one column matrix. Get the respective vector instead.
+    return BPProblem(A, data["b"][:], data["x"][:])
+end
+
+"""
+    Heuristic for optimality Check from [Lorenz2014, Alg. 2]
+
+"""
+function heuristic_optimality_check(xSol, Affine; δ::AbstractFloat = 1e-4, tol::AbstractFloat = 1e-12)
+    T = eltype(xSol)
+    m, n = size(Affine.A)
+    b = @views Affine.b
+    A = @views Affine.A
+    S = findall(x -> abs(x) > δ, xSol) # [Lorenz2014, Eq. (1)]
+    Aₛ = @views A[:, S]
+    xSolₛ = @views xSol[S]
+    ## TODO: Improve with CG instead of "small" QR (See [Lorenz2014, pg. 4])
+    F = qr(Aₛ)
+    w = F' \ sign.(xSolₛ)
+    if isapprox(norm(A'w, Inf), one(T), atol = tol)
+        xSol .= 0.0
+        ldiv!(xSolₛ, F, b)
+        norm_xSol_1 = norm(xSol, 1)
+        if isapprox((norm_xSol_1 - dot(w, b))/ norm_xSol_1, zero(T), atol = tol)
+            return sparse(xSol), :success
+        end
+    end
+    return xSol, :failure
 end
