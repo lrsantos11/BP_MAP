@@ -22,7 +22,7 @@ using LinearAlgebra
     probB1_HL14 = BPProblem(sol, A)
     Affine = IndAffine(probB1_HL14)
     tol = 1e-3
-    xMAP, it, inner_it, status = BP_MAP(
+    xMAP, it, inner_it, status = solveBP_MAP(
         Affine,
         itmax = itmax,
         ε = tol,
@@ -56,7 +56,7 @@ end
     Affine = IndAffine(prob_B2_HL14)
     tol = 1e-3
     xMAP, it, inner_it, status =
-        BP_MAP(Affine, itmax = itmax, ε = tol, ε_MAP = tol, verbose = false)
+        solveBP_MAP(Affine, itmax = itmax, ε = tol, ε_MAP = tol, verbose = false)
     @info "BP-MAP status is $status with  $(it) iterations and $(inner_it) inner iterations"
     @info "Solution not unique. Not calling HOC here"
     @info "xMAP - sol = $(norm(xMAP - sol, 2))"
