@@ -30,6 +30,8 @@ solveBP_MAP(Affine; itmax=100, ε=1e-6, verbose=false, x₀=Float64[], kwargs...
 """
 function solveBP_MAP(
     Affine;
+    # Commented until we know how to use HOC
+    # usehoc = false,
     itmax::Int = 1000,
     ε::Number = 1e-6,
     ε_MAP::Number = 1e-6,
@@ -38,6 +40,10 @@ function solveBP_MAP(
     BP_solution::AbstractVector = [],
     kwargs...,
 )
+    # Commented until we know how to use HOC
+    # Parameter to control support identification
+    # δ = 1.0e-12
+
     m, n = size(Affine.A)
     Ta = eltype(Affine.A)
     ProjAffine(x) = ProjectIndicator(Affine, x)
@@ -54,6 +60,10 @@ function solveBP_MAP(
     inner_it_total = 0
     status = :Tired
     tolBP = 1.0
+    # Commented until we know how to use HOC
+    # repsupport = 0
+    # support = findall(x -> abs(x) > δ, xMAP)
+    zMAP = similar(xMAP)
     while !(solved || tired)
         radius += distance
         BallL1 = IndBallL1(radius)
@@ -70,6 +80,26 @@ function solveBP_MAP(
         xMAP = ProjAffine(zMAP)
         it += 1
         inner_it_total += inner_it
+
+        # # This is not good yet, we have to learn what to do with the HOC result.
+        # # We need to check if it is a solution or use its information to 
+        # # getter a better bound for the ball radius.
+        # # Try to identify the support and apply HOC if reasonable 
+        # new_support = findall(x -> abs(x) > δ, zMAP)
+        # if usehoc && new_support == support 
+        #     repsupport += 1
+        #     if repsupport == 2
+        #         verbose && @info "Applying HOC"
+        #         xhoc, hocstatus = heuristic_optimality_check(zMAP, Affine; δ=δ)
+        #         if hocstatus == :success && norm(xhoc, 1) <= norm(xMAP, 1)
+        #             xMAP = xhoc
+        #         end
+        #     end
+        # else
+        #     repsupport = 0
+        #     support = new_support
+        # end
+
         distance = norm(xMAP - zMAP, 2)
         if inner_status == :Solved
             verbose && @info "Inner Solved"

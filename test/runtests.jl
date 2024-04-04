@@ -1,7 +1,8 @@
 using DrWatson, Test
 @quickactivate :BP_MAP
 
-if occursin("Intel", Sys.cpu_info()[1].model)
+cpu_model = Sys.cpu_info()[1].model
+if occursin("Intel", cpu_model) || occursin("AMD", cpu_model)
     using MKL
 end
 
