@@ -121,6 +121,10 @@ function heuristic_optimality_check(xSol, Affine; δ::AbstractFloat = 1e-4, tol:
     b = @views Affine.b
     A = @views Affine.A
     S = findall(x -> abs(x) > δ, xSol) # [Lorenz2014, Eq. (1)]
+    # Avoid overdetermined system not supported error. See TODO below.
+    if length(S) > m
+        return xSol, :failure
+    end
     Aₛ = @views A[:, S]
     xSolₛ = @views xSol[S]
     ## TODO: Improve with CG instead of "small" QR (See [Lorenz2014, pg. 4])
@@ -129,8 +133,11 @@ function heuristic_optimality_check(xSol, Affine; δ::AbstractFloat = 1e-4, tol:
     if isapprox(norm(A'w, Inf), one(T), atol = tol)
         xSol .= 0.0
         ldiv!(xSolₛ, F, b)
+
         norm_xSol_1 = norm(xSol, 1)
-        if isapprox((norm_xSol_1 - dot(w, b))/ norm_xSol_1, zero(T), atol = tol)
+        solve_Axb = norm(A*xSol - b, Inf) / max(norm(b, Inf), 1.0) <= tol
+        is_solution = isapprox((norm_xSol_1 - dot(w, b))/ norm_xSol_1, zero(T), atol = tol)
+        if solve_Axb && is_solution        
             return sparse(xSol), :success
         end
     end
