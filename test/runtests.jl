@@ -8,6 +8,11 @@ end
 
 using LinearAlgebra
 
+"Relative error assuming that b is not 0"
+function relerror(a, b)
+    return norm(a - b) / norm(b)
+end
+
 ##
 @testset "Example B1 [HL2014]" begin
     @info "Example B.1 of Hesse and Luke 2014"
@@ -26,19 +31,19 @@ using LinearAlgebra
     probB1_HL14 = BPProblem(sol, A)
     Affine = IndAffine(probB1_HL14)
     tol = 1e-3
-    xMAP, it, inner_it, status = solveBP_MAP(
+    xMAP, zMAP, it, inner_it, status = solveBP_MAP(
         Affine,
         itmax = itmax,
         ε = tol,
         ε_MAP = tol,
         BP_solution = sol,
-        verbose = true,
+        verbose = false, 
     )
     @info "BP-MAP status is $status with  $(it) iterations and $(inner_it) inner iterations"
     @info "xMAP - sol = $(norm(xMAP - sol, 2))"
     @test status == :Solved
     @info "Using HOC"
-    xSol, _ = heuristic_optimality_check(xMAP, Affine, δ = tol)
+    xSol, _ = heuristic_optimality_check(zMAP, Affine, δ = tol^4)
     @info "Solucao:  $xSol"
     @info "xSol - sol = $(norm(xSol - sol, 2))"
     @test xSol ≈ sol
@@ -59,7 +64,7 @@ end
     sol = [-10 / 3, 10 / 3, -10 / 3]
     Affine = IndAffine(prob_B2_HL14)
     tol = 1e-3
-    xMAP, it, inner_it, status =
+    xMAP, zMAP, it, inner_it, status =
         solveBP_MAP(Affine, itmax = itmax, ε = tol, ε_MAP = tol, verbose = false)
     @info "BP-MAP status is $status with  $(it) iterations and $(inner_it) inner iterations"
     @info "Solution not unique. Not calling HOC here"
@@ -86,14 +91,14 @@ LPT_testset = glob("*.mat", datadir("exp_raw", "L1_Testset_mat"));
         prob = readl1test(prob_name)
         affine = IndAffine(prob)
         @info "Problem $(prob_name) - size: $(size(prob.A))"
-        xMAP, it, inner_it, status =
+        xMAP, zMAP, it, inner_it, status =
             solveBP_MAP(affine, itmax = itmax, ε = tol, ε_MAP = tol, verbose = false)
-        @info "xMAP - sol = $(norm(xMAP - prob.sol, 2))"
+        @info "xMAP - sol = $(relerror(xMAP, prob.sol))"
         @info "BP-MAP status is $status with  $(it) iterations and $(inner_it) inner iterations"
         @info "Applying HOC"
-        xSol_HOC, status_hoc = heuristic_optimality_check(xMAP, affine, δ = tol)
-        @info "xSol_HOC - sol = $(norm(xSol_HOC - prob.sol, 2))"
-        @test norm(xSol_HOC - prob.sol) < 1e-8
+        xSol_HOC, status_hoc = heuristic_optimality_check(zMAP, affine, δ = tol^4)
+        @info "xSol_HOC - sol = $(norm(xSol_HOC - prob.sol, 2) / norm(prob.sol, 2))"
+        @test relerror(xSol_HOC, prob.sol) < 1e-8
         @info "Elapsed CPU time for BP_MAP + HOC"
         @btime begin
             affine = IndAffine($prob)
