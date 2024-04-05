@@ -16,7 +16,7 @@ using JuMP
 using HiGHS
 import ProximalOperators: IndBallL1
 
-export solveBP_MAP, solveBP_LP
+export solveBP_MAP, solveBP_LP, buildBP_LPModel, solveBP_LPmodel!
 
 include("BP_Utils.jl")
 include("MAP_Utils.jl")
@@ -135,8 +135,14 @@ end
 
 "Solve a BP problem using Linear Programming"
 function solveBP_LP(prob::BPProblem; Solver = HiGHS)
+    model = buildBP_LPModel(prob, Solver = Solver)
+    return solveBP_LPmodel!(model)
+end
+
+"Build a LP model that describes the Basis Pursuit problem"
+function buildBP_LPModel(prob::BPProblem; solver = HiGHS.Optimizer)
     # Create an LP model that represents the basis pursuit problem
-    model = Model(Solver.Optimizer)
+    model = Model(solver)
     set_silent(model)
 
     m, n = size(prob.A)
@@ -146,9 +152,14 @@ function solveBP_LP(prob::BPProblem; Solver = HiGHS)
     @constraint(model, prob.A * xplus - prob.A * xminus == prob.b)
 
     # Solve the model and return the solution
+    return model
+end
+
+"Solve an LP model describing BP"
+function solveBP_LPmodel!(model)
     optimize!(model)
     @assert termination_status(model) == OPTIMAL
-    return value.(xplus) - value.(xminus)
+    return value.(model[:xplus]) - value.(model[:xminus])
 end
 
 end

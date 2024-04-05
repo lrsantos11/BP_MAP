@@ -7,6 +7,17 @@ if occursin("Intel", cpu_model) || occursin("AMD", cpu_model)
 end
 
 using LinearAlgebra
+using JuMP
+using HiGHS
+# using Gurobi
+
+# Define the LP solver to use
+# solvertype = :gurobi 
+solvertype = :HiGHS
+# Set a global gurobi enviroment to supress multiple messages
+if solvertype ==:gurobi
+    global gurobi_env = Gurobi.Env()
+end
 
 "Relative error assuming that b is not 0"
 function relerror(a, b)
@@ -97,7 +108,7 @@ pushfirst!(LPT_testset, "spear_inst_400.mat")
 @testset "Instances from the LPT collection" begin
     itmax = 2000
     tol = 1e-3
-    for instance in LPT_testset[1:10]
+    for instance in LPT_testset[1:11]
         prob_name = basename(instance)
         prob = readl1test(prob_name)
         affine = IndAffine(prob)
@@ -130,8 +141,18 @@ pushfirst!(LPT_testset, "spear_inst_400.mat")
 
         @info "Elapsed CPU time for solving with LP Solver"
         # Use Gurobi if avaliable.
-        # @btime solveBP_LP($prob, Solver = Gurobi)
-        @btime solveBP_LP($prob)
+        if solvertype == :gurobi
+            solver = () -> Gurobi.Optimizer(gurobi_env) 
+        else
+            solver = HiGHS.Optimizer
+        end
+        model = buildBP_LPModel(prob, solver=solver)
+        @btime begin
+            m = copy($model)
+            set_optimizer(m, $solver)
+            set_silent(m)
+            solveBP_LPmodel!(m)
+        end
 
         println("="^10)
     end
