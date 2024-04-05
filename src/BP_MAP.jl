@@ -63,11 +63,10 @@ function solveBP_MAP(
     # Commented until we know how to use HOC
     # repsupport = 0
     # support = findall(x -> abs(x) > δ, xMAP)
-    zMAP = similar(xMAP)
     while !(solved || tired)
         radius += distance
         BallL1 = IndBallL1(radius)
-        Proj_BallL1(x) = ProjectIndicator(BallL1, x)
+        global Proj_BallL1 = x -> ProjectIndicator(BallL1, x)
         zMAP, inner_it, inner_status = MAP(
             xMAP,
             ProjAffine,
@@ -107,17 +106,18 @@ function solveBP_MAP(
             status = :Solved
             break
         end
-        BP_solution_given ? tolBP = norm(xMAP - BP_solution, 2) : tolBP = distance
+        tolBP = BP_solution_given ? norm(xMAP - BP_solution, 2) : distance
         solved = ((tolBP < ε) || (distance < ε))
         if solved
-            verbose && @info "solved"
+            verbose && @info "Solved"
             verbose && @info "it = $it"
+            verbose && @info "distance = $distance"
             verbose && @info "inner_it_total = $inner_it_total"
             status = :Solved
         end
         tired = it >= itmax
     end
-    return xMAP, it, inner_it_total, status
+    return xMAP, Proj_BallL1(xMAP), it, inner_it_total, status
 end
 
 "Solve a BP problem using MAP"
