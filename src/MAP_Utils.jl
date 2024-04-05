@@ -61,7 +61,7 @@ function MAP(
         # Check for infeasibility
         dist_AB_Old = dist_AB
         dist_AB = norm(ProjA - xMAP, 2)
-        tol_dist = abs(dist_AB - dist_AB_Old)
+        tol_dist = abs(dist_AB - dist_AB_Old) / dist_AB
         infeasible = tol_dist < ε_MAP
         if infeasible
             status = :Infeasible
