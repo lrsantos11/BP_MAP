@@ -5,8 +5,11 @@ Download test sets for the Basis Pursuit problem.
 using DrWatson
 @quickactivate "BP_MAP"
 
+using LinearAlgebra
 import Downloads
 using ProgressBars
+using MAT
+using Lasso
 
 "Create a progress bar to track downloads"
 function progressbar_factory()
@@ -23,15 +26,13 @@ function progressbar_factory()
     return updatebar
 end
 
-"Download the basis porsuit testset from Lorentz, Pfetsch, and Tillmann"
-function dowload_l1testset()
-    testurl = "http://wwwopt.mathematik.tu-darmstadt.de/spear/software/L1_Comparison/SPEAR_L1_Testset_mat.zip"
-
+"Download a testset" 
+function dowload_l1testset(testurl, destdir)
     # Avoid downloading multiple times
-    destdir = datadir("exp_raw", "L1_Testset_mat")
+    destdir = datadir("exp_raw", destdir)
     if isdir(destdir)
         @info destdir * " already exists, so no download is necessary."
-        return nothing
+        return false
     end
 
     # Create a progress bar as the download is long
@@ -43,7 +44,7 @@ function dowload_l1testset()
     if !isdir(basedatadir)
         mkpath(basedatadir)
     end
-    filename = joinpath(basedatadir, "l1testset.zip")
+    filename = joinpath(basedatadir, "tmpbptestset.zip")
     Downloads.download(testurl, filename; progress = updatebar)
 
     # Unzip test set
@@ -52,11 +53,65 @@ function dowload_l1testset()
 
     # Delete zip file
     rm(filename)
+    return true
+end
+
+"Convert ther Lasso problem in filename to BP format"
+function Lasso2BP(filename)
+    @info "Converting $(basename(filename))"
+    p = matread(filename)
+    m, n = size(p["A"])
+    try
+        lf = fit(
+            LassoPath,
+            p["A"],
+            p["b"][:, 1];
+            α = 1.0,
+            λ = [p["lambda"] / m],
+            intercept = false,
+            standardize = false
+        )
+        optval = 0.5 * norm(p["A"] * lf.coefs - p["b"], 2)^2 + p["lambda"] * norm(lf.coefs, 1)
+        @assert isapprox(optval, p["ftarget"], rtol = 1.0e-3)
+        p["optval"] = optval
+        p["b"] = p["A"]*lf.coefs
+        delete!(p, "ftarget")
+        delete!(p, "lambda")
+        rm(filename)
+        matwrite(filename, p; compress = true)
+    catch e
+        if isa(e, OutOfMemoryError)
+            @warn "Out of memory"
+            @warn "Deleting $filename"
+            rm(filename)
+        end
+    end
+end
+
+"Dowload and covert Lasso test set from Lopes, Santos and Silva"
+function getLasso2BP()
+    testurl = "https://drive.usercontent.google.com/download?id=1T4gCmV9rJ86jzPhRZ6B7ERQVSbvdsagU&export=download&authuser=1&confirm=t&uuid=46a74bc8-6ae6-40f8-9e75-f25228b2796f&at=APZUnTVUk8zQ_rr4YwCrQwdySM60:1712342173600"
+    destdir = "Data-Lasso"
+    downloaded = dowload_l1testset(testurl, destdir)
+    if downloaded
+        fullpath = datadir("exp_raw", destdir)
+        for filename in readdir(fullpath; join = true)
+            Lasso2BP(filename)
+        end
+    end
 end
 
 "Download and unpack all testsets"
 function main()
-    dowload_l1testset()
+    # Download testset from Lorentz, Pfetsch, and Tillmann
+    testurl = "http://wwwopt.mathematik.tu-darmstadt.de/spear/software/L1_Comparison/SPEAR_L1_Testset_mat.zip"
+    destdir = "L1_Testset_mat"
+    dowload_l1testset(testurl, destdir)
+
+    # Download and convert to BP format testset from Lopes, Santos e Silva
+    testurl = "https://www.ime.unicamp.br/~pjssilva/data/lassobp_mat.zip"
+    destdir = "lassobp_mat"
+    dowload_l1testset(testurl, destdir)
 end
 
 main()

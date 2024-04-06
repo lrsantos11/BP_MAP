@@ -106,6 +106,8 @@ function solveBP_MAP(
                 if hocstatus == :success 
                     verbose && @info "HOC declared success"
                     xMAP = xhoc
+                else
+                    verbose && @info "HOC failed"
                 end
             end
             status = :Solved
@@ -134,8 +136,8 @@ function solveBP_MAP(prob::BPProblem; kwags...)
 end
 
 "Solve a BP problem using Linear Programming"
-function solveBP_LP(prob::BPProblem; Solver = HiGHS)
-    model = buildBP_LPModel(prob, Solver = Solver)
+function solveBP_LP(prob::BPProblem; solver = HiGHS.Optimizer)
+    model = buildBP_LPModel(prob, solver = solver)
     return solveBP_LPmodel!(model)
 end
 

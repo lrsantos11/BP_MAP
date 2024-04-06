@@ -89,11 +89,7 @@ end
 "Read a test from the Lorentz, Pfetsch, and Tillmann testset"
 function readl1test(filename; sparse_matrix::Bool=false)
     # Verify if the test is available
-    dir = datadir("exp_raw", "L1_Testset_mat")
-    if !isdir(dir)
-        println(dir)
-        @error "Test set is not available"
-    end
+    dir = datadir("exp_raw")
     filename = joinpath(dir, filename)
     if !isfile(filename)
         @error "Test file does not exist"
@@ -108,7 +104,11 @@ function readl1test(filename; sparse_matrix::Bool=false)
     end
 
     # The solution is represented as a one column matrix. Get the respective vector instead.
-    return BPProblem(A, data["b"][:], data["x"][:])
+    if haskey(data, "x")
+        return BPProblem(A, data["b"][:], data["x"][:])
+    else
+        return BPProblem(A, data["b"][:])
+    end
 end
 
 """
@@ -129,17 +129,22 @@ function heuristic_optimality_check(xSol, Affine; δ::AbstractFloat = 1e-4, tol:
     xSolₛ = @views xSol[S]
     ## TODO: Improve with CG instead of "small" QR (See [Lorenz2014, pg. 4])
     F = qr(Aₛ)
-    w = F' \ sign.(xSolₛ)
-    if isapprox(norm(A'w, Inf), one(T), atol = tol)
-        xSol .= 0.0
-        ldiv!(xSolₛ, F, b)
+    ## TODO: See where the try-catch is needed
+    try 
+        w = F' \ sign.(xSolₛ)
+        if isapprox(norm(A'w, Inf), one(T), atol = tol)
+            xSol .= 0.0
+            ldiv!(xSolₛ, F, b)
 
-        norm_xSol_1 = norm(xSol, 1)
-        solve_Axb = norm(A*xSol - b, Inf) / max(norm(b, Inf), 1.0) <= tol
-        is_solution = isapprox((norm_xSol_1 - dot(w, b))/ norm_xSol_1, zero(T), atol = tol)
-        if solve_Axb && is_solution        
-            return sparse(xSol), :success
+            norm_xSol_1 = norm(xSol, 1)
+            solve_Axb = norm(A*xSol - b, Inf) / max(norm(b, Inf), 1.0) <= tol
+            is_solution = isapprox((norm_xSol_1 - dot(w, b))/ norm_xSol_1, zero(T), atol = tol)
+            if solve_Axb && is_solution        
+                return sparse(xSol), :success
+            end
         end
+        return xSol, :failure
+    catch
+        return xSol, :failure
     end
-    return xSol, :failure
 end
