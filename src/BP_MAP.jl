@@ -12,9 +12,11 @@ Authors: LRS an PJSS
 module BP_MAP
 
 using LinearAlgebra
+using LinearOperators
 import ProximalOperators: IndBallL1
+import Krylov: cgne, cg
 
-export solveBP_MAP, solveBP_LP, buildBP_LPModel, solveBP_LPmodel!
+export solveBP_MAP, affproxproj, affkrylovproj, affkktproj
 
 include("BP_Utils.jl")
 include("MAP_Utils.jl")
@@ -24,10 +26,13 @@ Using the Method of Alternating Projections for the Basis Pursuit problem
 min ||x||₁ 
 s.t. Ax = b 
 
-solveBP_MAP(Affine; itmax=100, ε=1e-6, verbose=false, x₀=Float64[], kwargs...) → xMAP, it, inner_it, status
+solveBP_MAP(
+    prob; affproj_factory=proxproj, usehoc=false, itmax=100, ε=1e-6, 
+    verbose=false, x₀=Float64[], kwargs...) → xMAP, it, inner_it, status
 """
 function solveBP_MAP(
-    Affine;
+    prob::BPProblem;
+    affproj_factory = smartproj,
     usehoc = false,
     itmax::Int = 1000,
     ε::Number = 1e-6,
@@ -40,9 +45,9 @@ function solveBP_MAP(
     # Parameter to control support identification
     δ = 1.0e-12
 
-    m, n = size(Affine.A)
-    Ta = eltype(Affine.A)
-    ProjAffine(x) = ProjectIndicator(Affine, x)
+    m, n = size(prob.A)
+    Ta = eltype(prob.A)
+    ProjAffine = affproj_factory(prob)
     if isempty(x₀)
         x₀ = zeros(Ta, n)
     end
@@ -81,7 +86,7 @@ function solveBP_MAP(
             repsupport += 1
             if repsupport == 2
                 verbose && @info "Applying HOC"
-                xhoc, hocstatus = heuristic_optimality_check(zMAP, Affine; δ = δ)
+                xhoc, hocstatus = heuristic_optimality_check(zMAP, prob ; δ = δ)
                 if hocstatus == :success
                     verbose && @info "HOC declared success"
                     xMAP = xhoc
@@ -100,7 +105,7 @@ function solveBP_MAP(
             verbose && @info "Distance = $distance"
             verbose && @info "Applying HOC"
             if usehoc
-                xhoc, hocstatus = heuristic_optimality_check(zMAP, Affine; δ = δ)
+                xhoc, hocstatus = heuristic_optimality_check(zMAP, prob; δ = δ)
                 if hocstatus == :success
                     verbose && @info "HOC declared success"
                     xMAP = xhoc
@@ -125,12 +130,54 @@ function solveBP_MAP(
     return xMAP, Proj_BallL1(xMAP), it, inner_it_total, status
 end
 
-"Solve a BP problem using MAP"
-function solveBP_MAP(prob::BPProblem; kwags...)
-    affine = IndAffine(prob)
-    x, _, _, _, status = solveBP_MAP(affine; kwags...)
-    @assert status == :Solved
-    return x
+
+"Factory for the projection function onto Ax = b using ProximalOperators"
+function affproxproj(prob::BPProblem)
+        affine = IndAffine(prob)
+        return (x -> ProjectIndicator(affine, x))
+end
+
+"Factory for the projection onto AX = b based on Krylov methods"
+function affkrylovproj(prob::BPProblem)
+    function proj(x)
+        pre_proj, _ = cgne(prob.A, prob.b - prob.A*x)
+        return  pre_proj + x
+    end 
+    return proj
+end
+
+"Factory for the projection onto AX = b based on KKT"
+function affkktproj(prob::BPProblem)
+    
+    # Mount the linear operator for the system of equations
+    m, _ = size(prob.A)
+    Op1 = LinearOperator(prob.A')
+    Op2 = LinearOperator(prob.A)
+    Op = Op2 * Op1
+
+    previousλ = fill(NaN, m)
+    function proj(x)
+        b = prob.A*x - prob.b
+        if isnan(previousλ[1])
+            λ₀ = zeros(m)
+        else
+            λ₀ = previousλ
+        end
+        λ, _ = cg(Op, b, λ₀)
+        previousλ .= λ
+        return x - prob.A'*λ
+    end 
+    return proj
+end
+
+"Factory for the projection onto Ax = b that choses the strategy based on whether prob.A 
+is sparse or not."
+function smartproj(prob::BPProblem)
+    if issparse(prob.A)
+        return affkktproj(prob)
+    else
+        return affproxproj(prob)
+    end
 end
 
 end

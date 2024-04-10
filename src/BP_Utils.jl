@@ -115,11 +115,11 @@ end
     Heuristic for optimality Check from [Lorenz2014, Alg. 2]
 
 """
-function heuristic_optimality_check(xSol, Affine; δ::AbstractFloat = 1e-4, tol::AbstractFloat = 1e-12)
+function heuristic_optimality_check(xSol, prob; δ::AbstractFloat = 1e-4, tol::AbstractFloat = 1e-12)
     T = eltype(xSol)
-    m, n = size(Affine.A)
-    b = @views Affine.b
-    A = @views Affine.A
+    m, n = size(prob.A)
+    b = @views prob.b
+    A = @views prob.A
     S = findall(x -> abs(x) > δ, xSol) # [Lorenz2014, Eq. (1)]
     # Avoid overdetermined system not supported error. See TODO below.
     if length(S) > m

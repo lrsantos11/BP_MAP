@@ -42,20 +42,19 @@ end
         ] ./ sqrt(8)
     sol = [10.0, 0, 0, 0, 0, 0, 0, 0]
     probB1_HL14 = BPProblem(sol, A)
-    Affine = IndAffine(probB1_HL14)
     tol = 1e-3
     xMAP, zMAP, it, inner_it, status =
-        solveBP_MAP(Affine, itmax = itmax, ε = tol, ε_MAP = tol, BP_solution = sol)
+        solveBP_MAP(probB1_HL14, itmax = itmax, ε = tol, ε_MAP = tol, BP_solution = sol)
     @info "BP-MAP status is $status with  $(it) iterations and $(inner_it) inner iterations"
     @info "xMAP - sol = $(relerror(xMAP, sol))"
     @test status == :Solved
     @info "Using HOC"
-    xSol, _ = heuristic_optimality_check(zMAP, Affine, δ = tol^4)
+    xSol, _ = heuristic_optimality_check(zMAP, probB1_HL14, δ = tol^4)
     @info "Solucao:  $xSol"
     @info "xSol - sol = $(relerror(xSol, sol))"
     @test xSol ≈ sol
     xMAP, zMAP, it, inner_it, status = solveBP_MAP(
-        Affine,
+        probB1_HL14,
         itmax = itmax,
         ε = tol,
         ε_MAP = tol,
@@ -77,20 +76,19 @@ end
     ]
     m, n = size(A)
     b = [-5.0, 5]
-    prob_B2_HL14 = BPProblem(A, b)
+    probB2_HL14 = BPProblem(A, b)
     # This problem has infinite solutions. BPMAP is converging to one of them.  
     sol = [-10 / 3, 10 / 3, -10 / 3]
-    Affine = IndAffine(prob_B2_HL14)
     tol = 1e-3
     xMAP, zMAP, it, inner_it, status =
-        solveBP_MAP(Affine, itmax = itmax, ε = tol, ε_MAP = tol)
+        solveBP_MAP(probB2_HL14, itmax = itmax, ε = tol, ε_MAP = tol)
     @info "BP-MAP status is $status with  $(it) iterations and $(inner_it) inner iterations"
     @info "Solution not unique. Not calling HOC here"
     @info "xMAP - sol = $(relerror(xMAP, sol))"
     @test status == :Solved
     @test xMAP ≈ sol
     xMAP, zMAP, it, inner_it, status =
-        solveBP_MAP(Affine, itmax = itmax, ε = tol, ε_MAP = tol, usehoc = true)
+        solveBP_MAP(probB2_HL14, itmax = itmax, ε = tol, ε_MAP = tol, usehoc = true)
     @info "BP-MAP status is $status with  $(it) iterations and $(inner_it) inner iterations"
     @info "xMAP - sol = $(relerror(xMAP, sol))"
     @test status == :Solved
@@ -113,33 +111,28 @@ LPT_testset = glob("*.mat", datadir("exp_raw", "L1_Testset_mat"));
     for instance in LPT_testset[1:11]
         prob_name = basename(instance)
         prob = readl1test(joinpath("L1_Testset_mat", prob_name))
-        affine = IndAffine(prob)
         @info "Problem $(prob_name) - size: $(size(prob.A))"
 
         xMAP, zMAP, it, inner_it, status =
-            solveBP_MAP(affine, itmax = itmax, ε = tol, ε_MAP = tol, verbose = false)
+            solveBP_MAP(prob, itmax = itmax, ε = tol, ε_MAP = tol)
         @info "BP-MAP status is $status with  $(it) iterations and $(inner_it) inner iterations"
         @info "xMAP - sol = $(relerror(xMAP, prob.sol))"
         @info "Applying HOC"
-        xSol_HOC, status_hoc = heuristic_optimality_check(zMAP, affine, δ = tol_HOC)
+        xSol_HOC, status_hoc = heuristic_optimality_check(zMAP, prob, δ = tol_HOC)
         @info "xSol_HOC - sol = $(norm(xSol_HOC - prob.sol, 2) / norm(prob.sol, 2))"
         @test relerror(xSol_HOC, prob.sol) < 1e-8
         @info "Elapsed CPU time for BP_MAP + HOC"
         @btime begin
-            affine = IndAffine($prob)
-            solveBP_MAP(affine, itmax = $itmax, ε = $tol, ε_MAP = $tol)
-            heuristic_optimality_check($xMAP, affine, δ = $tol_HOC)
+            solveBP_MAP($prob, itmax = $itmax, ε = $tol, ε_MAP = $tol)
+            heuristic_optimality_check($xMAP, $prob, δ = $tol_HOC)
         end
 
         xMAP, zMAP, it, inner_it, status =
-            solveBP_MAP(affine, itmax = itmax, ε = eps(1.0), ε_MAP = tol, usehoc = true)
+            solveBP_MAP(prob, itmax = itmax, ε = eps(1.0), ε_MAP = tol, usehoc = true)
         @info "BP-MAP with HOC status is $status with  $(it) iterations and $(inner_it) inner iterations"
         @info "xMAP - sol = $(relerror(xMAP, prob.sol))"
         @info "Elapsed CPU time for BP_MAP with HOC"
-        @btime begin
-            affine = IndAffine($prob)
-            solveBP_MAP(affine, itmax = $itmax, ε = $tol, ε_MAP = $tol, usehoc = true)
-        end
+        @btime solveBP_MAP($prob, itmax = $itmax, ε = $tol, ε_MAP = $tol, usehoc = true)
 
         @info "Elapsed CPU time for solving with LP Solver"
         # Use Gurobi if avaliable.
@@ -170,35 +163,28 @@ LSS_testset = glob("*.mat", datadir("exp_raw", "lassobp_mat"));
         prob_name = basename(instance)
         prob = readl1test(joinpath("lassobp_mat", prob_name))
         @info "Problem $(prob_name) - size: $(size(prob.A))"
-        @info "Starting first QR factorization"
-        affine = IndAffine(prob)
-        @info "End factorization"
 
         xMAP, zMAP, it, inner_it, status =
-            solveBP_MAP(affine, itmax = itmax, ε = tol, ε_MAP = tol)
+            solveBP_MAP(prob, itmax = itmax, ε = tol, ε_MAP = tol)
         @info "BP-MAP status is $status with  $(it) iterations and $(inner_it) inner iterations"
         @info "Applying HOC"
-        xSol_HOC, status_hoc = heuristic_optimality_check(zMAP, affine, δ = tol_HOC)
+        xSol_HOC, status_hoc = heuristic_optimality_check(zMAP, prob, δ = tol_HOC)
         @info "HOC status = $status_hoc"
         @info "Feasibility = $(relerror(prob.A*xSol_HOC, prob.b))"
-        @info "Optimal value = $(norm(xSol_HOC, 1))"
+        @info "Objective = $(norm(xSol_HOC, 1))"
         @info "Elapsed CPU time for BP_MAP + HOC"
         @btime begin
-            affine = IndAffine($prob)
-            solveBP_MAP(affine, itmax = $itmax, ε = $tol, ε_MAP = $tol)
-            heuristic_optimality_check($xMAP, affine, δ = $tol_HOC)
+            solveBP_MAP($prob, itmax = $itmax, ε = $tol, ε_MAP = $tol)
+            heuristic_optimality_check($xMAP, $prob, δ = $tol_HOC)
         end
 
         xMAP, zMAP, it, inner_it, status =
-            solveBP_MAP(affine, itmax = itmax, ε = eps(1.0), ε_MAP = tol, usehoc = true)
+            solveBP_MAP(prob, itmax = itmax, ε = eps(1.0), ε_MAP = tol, usehoc = true)
         @info "BP-MAP with HOC status is $status with  $(it) iterations and $(inner_it) inner iterations"
         @info "Feasibility = $(relerror(prob.A*xMAP, prob.b))"
-        @info "Optimal value = $(norm(xMAP, 1))"
+        @info "Objective = $(norm(xMAP, 1))"
         @info "Elapsed CPU time for BP_MAP with HOC"
-        @btime begin
-            affine = IndAffine($prob)
-            solveBP_MAP(affine, itmax = $itmax, ε = $tol, ε_MAP = $tol, usehoc = true)
-        end
+        @btime solveBP_MAP($prob, itmax = $itmax, ε = $tol, ε_MAP = $tol, usehoc = true)
 
         @info "Elapsed CPU time for solving with LP Solver"
         # Use Gurobi if avaliable.
