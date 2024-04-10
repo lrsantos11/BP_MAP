@@ -9,13 +9,13 @@ end
 using LinearAlgebra
 using Glob
 using BenchmarkTools
-using JuMP
-using HiGHS
-# using Gurobi
+
+include(scriptsdir("BP_LP.jl"))
+using Gurobi
 
 # Define the LP solver to use
-# solvertype = :gurobi 
-solvertype = :HiGHS
+solvertype = :gurobi 
+# solvertype = :HiGHS
 # Set a global gurobi enviroment to supress multiple messages
 if solvertype ==:gurobi
     global gurobi_env = Gurobi.Env()
