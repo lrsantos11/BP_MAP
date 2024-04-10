@@ -79,12 +79,12 @@ function solveBP_MAP(
 
         # Try to identify the support and apply HOC if reasonable 
         new_support = findall(x -> abs(x) > δ, zMAP)
-        if usehoc && (new_support == support) 
+        if usehoc && (new_support == support)
             repsupport += 1
             if repsupport == 2
                 verbose && @info "Applying HOC"
-                xhoc, hocstatus = heuristic_optimality_check(zMAP, Affine; δ=δ)
-                if hocstatus == :success 
+                xhoc, hocstatus = heuristic_optimality_check(zMAP, Affine; δ = δ)
+                if hocstatus == :success
                     verbose && @info "HOC declared success"
                     xMAP = xhoc
                     status = :Solved
@@ -102,8 +102,8 @@ function solveBP_MAP(
             verbose && @info "Distance = $distance"
             verbose && @info "Applying HOC"
             if usehoc
-                xhoc, hocstatus = heuristic_optimality_check(zMAP, Affine; δ=δ)
-                if hocstatus == :success 
+                xhoc, hocstatus = heuristic_optimality_check(zMAP, Affine; δ = δ)
+                if hocstatus == :success
                     verbose && @info "HOC declared success"
                     xMAP = xhoc
                 else
@@ -130,22 +130,22 @@ end
 "Solve a BP problem using MAP"
 function solveBP_MAP(prob::BPProblem; kwags...)
     affine = IndAffine(prob)
-    x, _, _, status = solveBP_MAP(affine; kwags...)
+    x, _, _, _, status = solveBP_MAP(affine; kwags...)
     @assert status == :Solved
     return x
 end
 
 "Solve a BP problem using Linear Programming"
-function solveBP_LP(prob::BPProblem; solver = HiGHS.Optimizer)
-    model = buildBP_LPModel(prob, solver = solver)
+function solveBP_LP(prob::BPProblem; solver = HiGHS.Optimizer, silent = true)
+    model = buildBP_LPModel(prob, solver = solver, silent = silent)
     return solveBP_LPmodel!(model)
 end
 
 "Build a LP model that describes the Basis Pursuit problem"
-function buildBP_LPModel(prob::BPProblem; solver = HiGHS.Optimizer)
+function buildBP_LPModel(prob::BPProblem; solver = HiGHS.Optimizer, silent = true)
     # Create an LP model that represents the basis pursuit problem
     model = Model(solver)
-    set_silent(model)
+    silent && set_silent(model)
 
     m, n = size(prob.A)
     @variable(model, xplus[1:n] >= 0)
