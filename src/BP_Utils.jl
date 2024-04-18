@@ -4,8 +4,9 @@ using LinearAlgebra
 using SparseArrays
 using MAT
 import ProximalOperators: IndAffine
+import Base: size, eltype
 
-export BPProblem, IndAffine, readl1test, heuristic_optimality_check
+export BPProblem, IndAffine, readl1test, heuristic_optimality_check, size, eltype
 
 """
 A Basis Pursuit problem data: ``\\min_x \\| x \\|_1`` s.t. ``Ax = b``
@@ -51,6 +52,8 @@ struct BPProblem{T<:AbstractFloat}
     end
 end
 
+size(prob::BPProblem) = size(prob.A)
+eltype(prob::BPProblem) = eltype(prob.A)
 
 "Construct a BPproblem without a solution or optimal value"
 function BPProblem(A, b)
@@ -105,9 +108,9 @@ function readl1test(filename; sparse_matrix::Bool=false)
 
     # The solution is represented as a one column matrix. Get the respective vector instead.
     if haskey(data, "x")
-        return BPProblem(A, data["b"][:], data["x"][:])
+        return BPProblem(A, Vector(data["b"][:]), data["x"][:])
     else
-        return BPProblem(A, data["b"][:])
+        return BPProblem(A, Vector(data["b"][:]))
     end
 end
 
@@ -117,7 +120,7 @@ end
 """
 function heuristic_optimality_check(xSol, prob; δ::AbstractFloat = 1e-4, tol::AbstractFloat = 1e-12)
     T = eltype(xSol)
-    m, n = size(prob.A)
+    m, n = size(prob)
     b = @views prob.b
     A = @views prob.A
     S = findall(x -> abs(x) > δ, xSol) # [Lorenz2014, Eq. (1)]
@@ -127,8 +130,9 @@ function heuristic_optimality_check(xSol, prob; δ::AbstractFloat = 1e-4, tol::A
     end
     Aₛ = @views A[:, S]
     xSolₛ = @views xSol[S]
-    ## TODO: Improve with CG instead of "small" QR (See [Lorenz2014, pg. 4])
+    ## TODO: Improve with CG instead of "small" QR (See [Lorenz2015, pg. 4])
     F = qr(Aₛ)
+    opAₛ = LinearOperator(Aₛ)
     ## TODO: See where the try-catch is needed
     try 
         w = F' \ sign.(xSolₛ)
