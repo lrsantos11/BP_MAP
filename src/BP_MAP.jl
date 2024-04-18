@@ -14,7 +14,7 @@ module BP_MAP
 using LinearAlgebra
 using LinearOperators
 import ProximalOperators: IndBallL1
-import Krylov: cgne, cg
+import Krylov: CgneSolver, cgne!, CgSolver, cg!
 
 export solveBP_MAP, affproxproj, affkrylovproj, affkktproj
 
@@ -139,22 +139,26 @@ end
 
 "Factory for the projection onto AX = b based on Krylov methods"
 function affkrylovproj(prob::BPProblem)
+    OpA = LinearOperator(prob.A)
+    cgne_solver = CgneSolver(OpA, prob.b)
+    pre_proj = cgne_solver.x
     function proj(x)
-        pre_proj, _ = cgne(prob.A, prob.b - prob.A*x)
-        return  pre_proj + x
+        cgne!(cgne_solver, OpA, prob.b - OpA*x)
+        return pre_proj + x
     end 
     return proj
 end
 
 "Factory for the projection onto AX = b based on KKT"
 function affkktproj(prob::BPProblem)
-    
+    T = eltype(prob)
     # Mount the linear operator for the system of equations
-    m, _ = size(prob.A)
-    Op1 = LinearOperator(prob.A')
-    Op2 = LinearOperator(prob.A)
-    Op = Op2 * Op1
-
+    m, _ = size(prob)
+    Op1 = LinearOperator(prob.A)
+    # Op2 = LinearOperator(prob.A)
+    Op = Op1 * Op1'
+    cg_solver = CgSolver(m, m, Vector{T})
+    λ = cg_solver.x
     previousλ = fill(NaN, m)
     function proj(x)
         b = prob.A*x - prob.b
@@ -163,7 +167,7 @@ function affkktproj(prob::BPProblem)
         else
             λ₀ = previousλ
         end
-        λ, _ = cg(Op, b, λ₀)
+        cg!(cg_solver, Op, b, λ₀)
         previousλ .= λ
         return x - prob.A'*λ
     end 
