@@ -1,10 +1,13 @@
 using DrWatson, Test
 @quickactivate :BP_MAP
 
-cpu_model = Sys.cpu_info()[1].model
-if occursin("Intel", cpu_model) || occursin("AMD", cpu_model)
-    using MKL
-end
+# cpu_model = Sys.cpu_info()[1].model
+# if occursin("Intel", cpu_model) || occursin("AMD", cpu_model)
+#     using MKL
+#     using MKLSparse
+#     @info "Using MKL and MKLSparse"
+#     @info "Number of threads = $(Threads.nthreads())"
+# end
 
 using LinearAlgebra
 using Glob
@@ -14,10 +17,10 @@ include(scriptsdir("BP_LP.jl"))
 using Gurobi
 
 # Define the LP solver to use
-solvertype = :gurobi 
+solvertype = :gurobi
 # solvertype = :HiGHS
 # Set a global gurobi enviroment to supress multiple messages
-if solvertype ==:gurobi
+if solvertype == :gurobi
     global gurobi_env = Gurobi.Env()
 end
 
@@ -27,6 +30,8 @@ function relerror(a, b)
 end
 
 ##
+# HL2014 tests
+
 @testset "Example B1 [HL2014]" begin
     @info "Example B.1 of Hesse and Luke 2014"
     itmax = 50
@@ -107,11 +112,12 @@ LPT_testset = glob("*.mat", datadir("exp_raw", "L1_Testset_mat"));
 
 @testset "Instances from the LPT collection" begin
     itmax = 2000
-    tol, tol_HOC = 1e-3, 1.0e-12
-    for instance in LPT_testset[1:11]
+    tol, tol_HOC = 1e-5, 1.0e-12
+    for instance in LPT_testset[80:82] # LPT_testset[1:11]
         prob_name = basename(instance)
         prob = readl1test(joinpath("L1_Testset_mat", prob_name))
         @info "Problem $(prob_name) - size: $(size(prob.A))"
+        @info "Matrix type: $(typeof(prob.A))"
 
         xMAP, zMAP, it, inner_it, status =
             solveBP_MAP(prob, itmax = itmax, ε = tol, ε_MAP = tol)
@@ -137,11 +143,11 @@ LPT_testset = glob("*.mat", datadir("exp_raw", "L1_Testset_mat"));
         @info "Elapsed CPU time for solving with LP Solver"
         # Use Gurobi if avaliable.
         if solvertype == :gurobi
-            solver = () -> Gurobi.Optimizer(gurobi_env) 
+            solver = () -> Gurobi.Optimizer(gurobi_env)
         else
             solver = HiGHS.Optimizer
         end
-        model = buildBP_LPModel(prob, solver=solver)
+        model = buildBP_LPModel(prob, solver = solver)
         @btime begin
             m = copy($model)
             set_optimizer(m, $solver)
@@ -157,12 +163,13 @@ end
 
 LSS_testset = glob("*.mat", datadir("exp_raw", "lassobp_mat"));
 @testset "Instances from the LSS collection" begin
-    itmax = 250 
-    tol, tol_HOC = 1.0e-3, 1.0e-12
+    itmax = 250
+    tol, tol_HOC = 1.0e-5, 1.0e-12
     for instance in ["SC6.mat"] #LSS_testset[3:4]
         prob_name = basename(instance)
         prob = readl1test(joinpath("lassobp_mat", prob_name))
         @info "Problem $(prob_name) - size: $(size(prob.A))"
+        @info "Matrix type: $(typeof(prob.A))"
 
         xMAP, zMAP, it, inner_it, status =
             solveBP_MAP(prob, itmax = itmax, ε = tol, ε_MAP = tol)
@@ -189,11 +196,11 @@ LSS_testset = glob("*.mat", datadir("exp_raw", "lassobp_mat"));
         @info "Elapsed CPU time for solving with LP Solver"
         # Use Gurobi if avaliable.
         if solvertype == :gurobi
-            solver = () -> Gurobi.Optimizer(gurobi_env) 
+            solver = () -> Gurobi.Optimizer(gurobi_env)
         else
             solver = HiGHS.Optimizer
         end
-        model = buildBP_LPModel(prob, solver=solver)
+        model = buildBP_LPModel(prob, solver = solver)
         @btime begin
             m = copy($model)
             set_optimizer(m, $solver)

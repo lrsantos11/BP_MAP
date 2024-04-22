@@ -1,10 +1,23 @@
 # Utilities for Basis Pursuit problems.
+cpu_model = Sys.cpu_info()[1].model
+
 using DrWatson
 using LinearAlgebra
-using SparseArrays
 using MAT
+using SparseArrays
 import ProximalOperators: IndAffine
 import Base: size, eltype
+import Krylov: cgls, lslq
+
+if occursin("Intel", cpu_model) || occursin("AMD", cpu_model)
+    global islinux = true
+    using MKLSparse
+    @info "Using MKL and MKLSparse"
+    @info "Number of threads = $(Threads.nthreads())"
+else
+    global islinux = false
+    using ThreadedSparseArrays
+end
 
 export BPProblem, IndAffine, readl1test, heuristic_optimality_check, size, eltype
 
@@ -19,8 +32,9 @@ A Basis Pursuit problem data: ``\\min_x \\| x \\|_1`` s.t. ``Ax = b``
 """
 struct BPProblem{T<:AbstractFloat}
     A::AbstractMatrix{T}
-    b::AbstractVector{T}
-    sol::AbstractVector{T}
+    At::AbstractMatrix{T}
+    b::Vector{T}
+    sol::Vector{T}
     optval::T
 
     """
@@ -47,8 +61,19 @@ struct BPProblem{T<:AbstractFloat}
         if !isnan(sol[1]) && !isnan(optval)
             @assert abs(optval - norm(sol, 1)) < small
         end
+        if issparse(A)
+            irows, icols, vals = findnz(A)
+            if islinux
+                At = sparse(icols, irows, vals)
+            else
+                A = ThreadedSparseMatrixCSC(A)
+                At = ThreadedSparseMatrixCSC(sparse(icols, irows, vals))
+            end
+        else
+            At = A'
+        end
 
-        new{T}(A, b, sol, optval)
+        new{T}(A, At, Vector{T}(b), Vector{T}(sol), optval)
     end
 end
 
@@ -118,7 +143,7 @@ end
     Heuristic for optimality Check from [Lorenz2014, Alg. 2]
 
 """
-function heuristic_optimality_check(xSol, prob; δ::AbstractFloat = 1e-4, tol::AbstractFloat = 1e-12)
+function heuristic_optimality_check(xSol, prob; δ::AbstractFloat = 1e-4, tol::AbstractFloat = 1e-6)
     T = eltype(xSol)
     m, n = size(prob)
     b = @views prob.b
@@ -131,14 +156,24 @@ function heuristic_optimality_check(xSol, prob; δ::AbstractFloat = 1e-4, tol::A
     Aₛ = @views A[:, S]
     xSolₛ = @views xSol[S]
     ## TODO: Improve with CG instead of "small" QR (See [Lorenz2015, pg. 4])
-    F = qr(Aₛ)
-    opAₛ = LinearOperator(Aₛ)
+    if !issparse(A)
+        F = qr(Aₛ)
+    end
     ## TODO: See where the try-catch is needed
     try 
-        w = F' \ sign.(xSolₛ)
+        if issparse(A)
+            w, _ = lslq(Aₛ', sign.(xSolₛ))
+        else
+            w = F' \ sign.(xSolₛ)
+        end
         if isapprox(norm(A'w, Inf), one(T), atol = tol)
             xSol .= 0.0
-            ldiv!(xSolₛ, F, b)
+            if issparse(A)
+                presol, _ = lslq(Aₛ, b)
+                xSolₛ .= presol
+            else
+                ldiv!(xSolₛ, F, b)
+            end
 
             norm_xSol_1 = norm(xSol, 1)
             solve_Axb = norm(A*xSol - b, Inf) / max(norm(b, Inf), 1.0) <= tol

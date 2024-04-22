@@ -12,6 +12,7 @@ Authors: LRS an PJSS
 module BP_MAP
 
 using LinearAlgebra
+using SparseArrays
 using LinearOperators
 import ProximalOperators: IndBallL1
 import Krylov: CgneSolver, cgne!, CgSolver, cg!
@@ -155,8 +156,8 @@ function affkktproj(prob::BPProblem)
     # Mount the linear operator for the system of equations
     m, _ = size(prob)
     Op1 = LinearOperator(prob.A)
-    # Op2 = LinearOperator(prob.A)
-    Op = Op1 * Op1'
+    Op2 = LinearOperator(prob.At)
+    Op = Op2' * Op1'
     cg_solver = CgSolver(m, m, Vector{T})
     λ = cg_solver.x
     previousλ = fill(NaN, m)

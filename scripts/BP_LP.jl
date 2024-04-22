@@ -1,13 +1,11 @@
 using DrWatson
 @quickactivate "BP_MAP"
 
-
 using ..BP_MAP
 
 using LinearAlgebra
 using JuMP
 using HiGHS
-
 
 "Solve a BP problem using Linear Programming"
 function solveBP_LP(prob::BPProblem; solver = HiGHS.Optimizer, verbose = false)

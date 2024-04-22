@@ -3,6 +3,7 @@ authors = ["Luiz-Rafael Santos", "Paulo J. S. Silva", "Roger Behling", "Yunier B
 
 [deps]
 BenchmarkTools = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
+CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
 Downloads = "f43a241f-c20a-4ad4-852c-f6b1247861c6"
 DrWatson = "634d3b9d-ee7a-5ddf-bec9-22491ea816e1"
 Glob = "c27321d9-0574-5035-807b-f59d2c89b15c"
@@ -16,10 +17,14 @@ LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 LinearOperators = "5c8ed15e-5a4c-59e4-a42b-c7e8811fb125"
 MAT = "23992714-dd62-5051-b70f-ba57cb901cac"
 MKL = "33e6dc65-8f57-5167-99aa-e5a354878fb2"
+MKLSparse = "0c723cd3-b8cd-5d40-b370-ba682dde9aae"
 ProgressBars = "49802e3a-d2f1-5c88-81d8-b72133a6f568"
 ProximalOperators = "a725b495-10eb-56fe-b38b-717eba820537"
 Reexport = "189a3867-3050-52da-a836-e630ba90ab69"
 SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
+SparseMatricesCSR = "a0a7dd2c-ebf4-11e9-1f05-cf50bc540ca1"
+ThreadedSparseArrays = "59d54670-b8ac-4d81-ab7a-bb56233e17ab"
+ThreadedSparseCSR = "39591389-4884-462a-89e7-9edfce40b6eb"
 
 [compat]
 DrWatson = "2.14.1"
