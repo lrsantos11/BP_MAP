@@ -1,5 +1,15 @@
 # Utilities for Basis Pursuit problems.
 cpu_model = Sys.cpu_info()[1].model
+if occursin("Intel", cpu_model) || occursin("AMD", cpu_model)
+    global islinux = true
+    using MKLSparse
+    @info "Using MKL and MKLSparse"
+    @info "Number of threads = $(Threads.nthreads())"
+else
+    global islinux = false
+    using AppleAccelerate
+    using ThreadedSparseArrays
+end
 
 using DrWatson
 using LinearAlgebra
@@ -9,15 +19,7 @@ import ProximalOperators: IndAffine
 import Base: size, eltype
 import Krylov: cgls, lslq
 
-if occursin("Intel", cpu_model) || occursin("AMD", cpu_model)
-    global islinux = true
-    using MKLSparse
-    @info "Using MKL and MKLSparse"
-    @info "Number of threads = $(Threads.nthreads())"
-else
-    global islinux = false
-    using ThreadedSparseArrays
-end
+cpu_model = Sys.cpu_info()[1].model
 
 export BPProblem, IndAffine, readl1test, heuristic_optimality_check, size, eltype
 
