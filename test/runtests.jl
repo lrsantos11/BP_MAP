@@ -1,13 +1,6 @@
 using DrWatson, Test
 @quickactivate :BP_MAP
-
-# cpu_model = Sys.cpu_info()[1].model
-# if occursin("Intel", cpu_model) || occursin("AMD", cpu_model)
-#     using MKL
-#     using MKLSparse
-#     @info "Using MKL and MKLSparse"
-#     @info "Number of threads = $(Threads.nthreads())"
-# end
+acceleration::AccelerationTarget = noaccel
 
 using LinearAlgebra
 using Glob
@@ -115,18 +108,19 @@ LPT_testset = glob("*.mat", datadir("exp_raw", "L1_Testset_mat"));
     tol, tol_HOC = 1e-5, 1.0e-12
     for instance in LPT_testset[80:82] # LPT_testset[1:11]
         prob_name = basename(instance)
-        prob = readl1test(joinpath("L1_Testset_mat", prob_name))
-        @info "Problem $(prob_name) - size: $(size(prob.A))"
+        prob = readl1test(joinpath("L1_Testset_mat", prob_name); acceltype = acceleration)
+        sol = prob.sol
+        @info "Problem $(prob_name) - size: $(size(prob))"
         @info "Matrix type: $(typeof(prob.A))"
 
         xMAP, zMAP, it, inner_it, status =
             solveBP_MAP(prob, itmax = itmax, ε = tol, ε_MAP = tol)
         @info "BP-MAP status is $status with  $(it) iterations and $(inner_it) inner iterations"
-        @info "xMAP - sol = $(relerror(xMAP, prob.sol))"
+        @info "xMAP - sol = $(relerror(xMAP, sol))"
         @info "Applying HOC"
         xSol_HOC, status_hoc = heuristic_optimality_check(zMAP, prob, δ = tol_HOC)
-        @info "xSol_HOC - sol = $(norm(xSol_HOC - prob.sol, 2) / norm(prob.sol, 2))"
-        @test relerror(xSol_HOC, prob.sol) < 1e-8
+        @info "xSol_HOC - sol = $(norm(xSol_HOC - sol, 2) / norm(sol, 2))"
+        @test relerror(xSol_HOC, sol) < 1e-8
         @info "Elapsed CPU time for BP_MAP + HOC"
         @btime begin
             solveBP_MAP($prob, itmax = $itmax, ε = $tol, ε_MAP = $tol)
@@ -136,7 +130,7 @@ LPT_testset = glob("*.mat", datadir("exp_raw", "L1_Testset_mat"));
         xMAP, zMAP, it, inner_it, status =
             solveBP_MAP(prob, itmax = itmax, ε = eps(1.0), ε_MAP = tol, usehoc = true)
         @info "BP-MAP with HOC status is $status with  $(it) iterations and $(inner_it) inner iterations"
-        @info "xMAP - sol = $(relerror(xMAP, prob.sol))"
+        @info "xMAP - sol = $(relerror(xMAP, sol))"
         @info "Elapsed CPU time for BP_MAP with HOC"
         @btime solveBP_MAP($prob, itmax = $itmax, ε = $tol, ε_MAP = $tol, usehoc = true)
 
@@ -163,36 +157,15 @@ end
 
 LSS_testset = glob("*.mat", datadir("exp_raw", "lassobp_mat"));
 @testset "Instances from the LSS collection" begin
-    itmax = 250
+    itmax = 100
     tol, tol_HOC = 1.0e-5, 1.0e-12
-    for instance in ["SC6.mat"] #LSS_testset[3:4]
+    for instance in ["SC25.mat"] #LSS_testset[3:4]
         prob_name = basename(instance)
-        prob = readl1test(joinpath("lassobp_mat", prob_name))
+        prob = readl1test(joinpath("lassobp_mat", prob_name); acceltype = acceleration)
         @info "Problem $(prob_name) - size: $(size(prob.A))"
         @info "Matrix type: $(typeof(prob.A))"
 
-        xMAP, zMAP, it, inner_it, status =
-            solveBP_MAP(prob, itmax = itmax, ε = tol, ε_MAP = tol)
-        @info "BP-MAP status is $status with  $(it) iterations and $(inner_it) inner iterations"
-        @info "Applying HOC"
-        xSol_HOC, status_hoc = heuristic_optimality_check(zMAP, prob, δ = tol_HOC)
-        @info "HOC status = $status_hoc"
-        @info "Feasibility = $(relerror(prob.A*xSol_HOC, prob.b))"
-        @info "Objective = $(norm(xSol_HOC, 1))"
-        @info "Elapsed CPU time for BP_MAP + HOC"
-        @btime begin
-            solveBP_MAP($prob, itmax = $itmax, ε = $tol, ε_MAP = $tol)
-            heuristic_optimality_check($xMAP, $prob, δ = $tol_HOC)
-        end
-
-        xMAP, zMAP, it, inner_it, status =
-            solveBP_MAP(prob, itmax = itmax, ε = eps(1.0), ε_MAP = tol, usehoc = true)
-        @info "BP-MAP with HOC status is $status with  $(it) iterations and $(inner_it) inner iterations"
-        @info "Feasibility = $(relerror(prob.A*xMAP, prob.b))"
-        @info "Objective = $(norm(xMAP, 1))"
-        @info "Elapsed CPU time for BP_MAP with HOC"
-        @btime solveBP_MAP($prob, itmax = $itmax, ε = $tol, ε_MAP = $tol, usehoc = true)
-
+        # LP
         @info "Elapsed CPU time for solving with LP Solver"
         # Use Gurobi if avaliable.
         if solvertype == :gurobi
@@ -201,14 +174,42 @@ LSS_testset = glob("*.mat", datadir("exp_raw", "lassobp_mat"));
             solver = HiGHS.Optimizer
         end
         model = buildBP_LPModel(prob, solver = solver)
-        @btime begin
-            m = copy($model)
-            set_optimizer(m, $solver)
+        @time begin
+            # m = copy($model)
+            # set_optimizer(m, $solver)
+            m = copy(model)
+            set_optimizer(m, solver)
             set_silent(m)
             solveBP_LPmodel!(m)
             global optval = objective_value(m)
         end
         @info "Optimal value = $optval"
+       
+        # BP_MAP + HOC
+        @info "Elapsed CPU time for solving with BP_MAP + HOC"
+        @time xMAP, zMAP, it, inner_it, status =
+            solveBP_MAP(prob, itmax = itmax, ε = tol, ε_MAP = tol)
+        @info "BP-MAP status is $status with  $(it) iterations and $(inner_it) inner iterations"
+        @info "Applying HOC"
+        @time xSol_HOC, status_hoc = heuristic_optimality_check(zMAP, prob, δ = tol_HOC)
+        @info "HOC status = $status_hoc"
+        @info "Feasibility = $(relerror(prob.A*xSol_HOC, prob.b))"
+        @info "Objective = $(norm(xSol_HOC, 1))"
+        @info "Elapsed CPU time for BP_MAP + HOC"
+        # @btime begin
+        #     solveBP_MAP($prob, itmax = $itmax, ε = $tol, ε_MAP = $tol)
+        #     heuristic_optimality_check($xMAP, $prob, δ = $tol_HOC)
+        # end
+
+        # BP_MAC with HOC
+        @info "Elapsed CPU time for solving with BP_MAP with HOC"
+        @time xMAP, zMAP, it, inner_it, status =
+            solveBP_MAP(prob, itmax = itmax, ε = eps(1.0), ε_MAP = tol, usehoc = true)
+        @info "BP-MAP with HOC status is $status with  $(it) iterations and $(inner_it) inner iterations"
+        @info "Feasibility = $(relerror(prob.A*xMAP, prob.b))"
+        @info "Objective = $(norm(xMAP, 1))"
+        @info "Elapsed CPU time for BP_MAP with HOC"
+        # @btime solveBP_MAP($prob, itmax = $itmax, ε = $tol, ε_MAP = $tol, usehoc = true)
 
         println("="^10)
     end

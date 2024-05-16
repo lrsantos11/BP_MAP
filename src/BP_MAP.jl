@@ -14,8 +14,10 @@ module BP_MAP
 using LinearAlgebra
 using SparseArrays
 using LinearOperators
+using CUDA
+using CUDA.CUSPARSE
 import ProximalOperators: IndBallL1
-import Krylov: CgneSolver, cgne!, CgSolver, cg!
+import Krylov: CgneSolver, cgne!, CgSolver, cg!, cg, SimpleStats
 
 export solveBP_MAP, affproxproj, affkrylovproj, affkktproj
 
@@ -32,8 +34,7 @@ solveBP_MAP(
     verbose=false, x₀=Float64[], kwargs...) → xMAP, it, inner_it, status
 """
 function solveBP_MAP(
-    prob::BPProblem;
-    affproj_factory = smartproj,
+    prob::AbstractBPP;
     usehoc = false,
     itmax::Int = 1000,
     ε::Number = 1e-6,
@@ -46,9 +47,9 @@ function solveBP_MAP(
     # Parameter to control support identification
     δ = 1.0e-12
 
-    m, n = size(prob.A)
+    _, n = size(prob.A)
     Ta = eltype(prob.A)
-    ProjAffine = affproj_factory(prob)
+    ProjAffine = projBPP(prob)
     if isempty(x₀)
         x₀ = zeros(Ta, n)
     end
@@ -131,58 +132,43 @@ function solveBP_MAP(
     return xMAP, Proj_BallL1(xMAP), it, inner_it_total, status
 end
 
-
 "Factory for the projection function onto Ax = b using ProximalOperators"
-function affproxproj(prob::BPProblem)
+function affproxproj(prob::AbstractDirBPP)
         affine = IndAffine(prob)
-        return (x -> ProjectIndicator(affine, x))
+        return x -> ProjectIndicator(affine, x)
 end
 
 "Factory for the projection onto AX = b based on Krylov methods"
-function affkrylovproj(prob::BPProblem)
-    OpA = LinearOperator(prob.A)
-    cgne_solver = CgneSolver(OpA, prob.b)
+function affkrylovproj(prob::AbstractItBPP)
+    OpA = LinearOperator(prob.accelA)
+    cgne_solver = CgneSolver(OpA, prob.accelb)
     pre_proj = cgne_solver.x
     function proj(x)
-        cgne!(cgne_solver, OpA, prob.b - OpA*x)
-        return pre_proj + x
+        cgne!(cgne_solver, OpA, prob.accelb - OpA*convert(typeof(prob.accelb), x))
+        return Vector(pre_proj) + x
     end 
     return proj
 end
 
 "Factory for the projection onto AX = b based on KKT"
-function affkktproj(prob::BPProblem)
-    T = eltype(prob)
-    # Mount the linear operator for the system of equations
+function affkktproj(prob::AbstractItBPP)
+    # Create the linear operator for the system of equations
     m, _ = size(prob)
-    Op1 = LinearOperator(prob.A)
-    Op2 = LinearOperator(prob.At)
-    Op = Op2' * Op1'
-    cg_solver = CgSolver(m, m, Vector{T})
+    Op = AAtfactory(prob)
+    cg_solver = CgSolver(m, m, typeof(prob.accelb))
     λ = cg_solver.x
-    previousλ = fill(NaN, m)
     function proj(x)
-        b = prob.A*x - prob.b
-        if isnan(previousλ[1])
-            λ₀ = zeros(m)
-        else
-            λ₀ = previousλ
-        end
-        cg!(cg_solver, Op, b, λ₀)
-        previousλ .= λ
-        return x - prob.A'*λ
+        b = prob.accelAt'*convert(typeof(prob.accelb), x) - prob.accelb
+        cg!(cg_solver, Op, b)       
+        return x - Vector(prob.accelA'*λ)
     end 
     return proj
 end
 
-"Factory for the projection onto Ax = b that choses the strategy based on whether prob.A 
-is sparse or not."
-function smartproj(prob::BPProblem)
-    if issparse(prob.A)
-        return affkktproj(prob)
-    else
-        return affproxproj(prob)
-    end
-end
+"Preferred projection for problems that use direct solvers"
+projBPP(prob::AbstractDirBPP) = affproxproj(prob)
+
+"Preferred projection for problems that use iterative solvers"
+projBPP(prob::AbstractItBPP) = affkktproj(prob)
 
 end

@@ -8,18 +8,18 @@ using JuMP
 using HiGHS
 
 "Solve a BP problem using Linear Programming"
-function solveBP_LP(prob::BPProblem; solver = HiGHS.Optimizer, verbose = false)
+function solveBP_LP(prob::AbstractBPP; solver = HiGHS.Optimizer, verbose = false)
     model = buildBP_LPModel(prob, solver = solver, verbose = verbose)
     return solveBP_LPmodel!(model)
 end
 
 "Build a LP model that describes the Basis Pursuit problem"
-function buildBP_LPModel(prob::BPProblem; solver = HiGHS.Optimizer, verbose = false)
+function buildBP_LPModel(prob::AbstractBPP; solver = HiGHS.Optimizer, verbose = false)
     # Create an LP model that represents the basis pursuit problem
     model = Model(solver)
     !verbose && set_silent(model)
 
-    m, n = size(prob.A)
+    m, n = size(prob)
     @variable(model, xplus[1:n] >= 0)
     @variable(model, xminus[1:n] >= 0)
     @objective(model, Min, sum(xplus) + sum(xminus))

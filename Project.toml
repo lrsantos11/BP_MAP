@@ -4,6 +4,7 @@ authors = ["Luiz-Rafael Santos", "Paulo J. S. Silva", "Roger Behling", "Yunier B
 [deps]
 AppleAccelerate = "13e28ba4-7ad8-5781-acae-3021b1ed3924"
 BenchmarkTools = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
+CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
 Downloads = "f43a241f-c20a-4ad4-852c-f6b1247861c6"
 DrWatson = "634d3b9d-ee7a-5ddf-bec9-22491ea816e1"
 Glob = "c27321d9-0574-5035-807b-f59d2c89b15c"
