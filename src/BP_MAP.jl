@@ -86,7 +86,7 @@ function solveBP_MAP(
         new_support = findall(x -> abs(x) > δ, zMAP)
         if usehoc && (new_support == support)
             repsupport += 1
-            if repsupport == 2
+            if repsupport == 1
                 verbose && @info "Applying HOC"
                 xhoc, hocstatus = heuristic_optimality_check(zMAP, prob ; δ = δ)
                 if hocstatus == :success
