@@ -24,6 +24,7 @@ import Krylov: cgls, lslq
 cpu_model = Sys.cpu_info()[1].model
 
 export AccelerationTarget, noaccel, CUDAaccel
+export MatType, densemat, sparsemat, automat
 export AbstractBPP, BPProblem, IndAffine, readl1test, heuristic_optimality_check, size, eltype
 
 """
@@ -200,10 +201,14 @@ function IndAffine(prob::AbstractDirBPP)
     return IndAffine(prob.accelA, prob.accelb)
 end
 
-"Read a test from the Lorentz, Pfetsch, and Tillmann testset"
+"Represents possible matrices types to store"
+@enum MatType densemat sparsemat automat
+
+"Read a test."
 function readl1test(
     filename;
-    forcesparse::Bool = false,
+    rhs = 1,
+    mattype::MatType = automat,
     acceltype::AccelerationTarget = noaccel,
 )
     # Verify if the test is available
@@ -215,7 +220,9 @@ function readl1test(
 
     # Read the actual data
     data = matread(filename)
-    if forcesparse
+    if mattype == densemat
+        A = Matrix(data["A"])
+    elseif mattype == sparsemat
         A = sparse(data["A"])
     else
         A = data["A"]
@@ -223,9 +230,9 @@ function readl1test(
 
     # The solution is represented as a one column matrix. Get the respective vector instead.
     if haskey(data, "x")
-        return BPProblem(A, Vector(data["b"][:]), Vector(data["x"][:]); acceltype = acceltype)
+        return BPProblem(A, Vector(data["b"][:, rhs]), Vector(data["x"][:]); acceltype = acceltype)
     else
-        return BPProblem(A, Vector(data["b"][:]); acceltype = acceltype)
+        return BPProblem(A, Vector(data["b"][:, rhs]); acceltype = acceltype)
     end
 end
 
@@ -286,6 +293,7 @@ function heuristic_optimality_check(
     δ::AbstractFloat = 1e-4,
     tol::AbstractFloat = 1e-6,
 )
+    xSol = copy(xSol)
     T = eltype(prob)
     m, _ = size(prob)
     vectype = typeof(prob.accelb)
@@ -300,7 +308,7 @@ function heuristic_optimality_check(
     xSolₛ = @view xSol[S]
     
     ## TODO: See where the try-catch is needed
-    # try
+    try
         w = lsHOC(Aₛ', vectype(sign.(xSolₛ)))
         if isapprox(norm(A'w, Inf), one(T), atol = tol)
             xSol .= 0.0
@@ -315,7 +323,7 @@ function heuristic_optimality_check(
             end
         end
         return xSol, :failure
-    # catch
-    #     return xSol, :failure
-    # end
+    catch
+        return xSol, :failure
+    end
 end

@@ -8,6 +8,7 @@ using DrWatson
 using LinearAlgebra
 import Downloads
 using ProgressBars
+using SparseArrays
 using MAT
 using Lasso
 
@@ -26,7 +27,7 @@ function progressbar_factory()
     return updatebar
 end
 
-"Download a testset" 
+"Download a testset"
 function dowload_l1testset(testurl, destdir)
     # Avoid downloading multiple times
     destdir = datadir("exp_raw", destdir)
@@ -58,32 +59,45 @@ end
 
 "Convert ther Lasso problem in filename to BP format"
 function Lasso2BP(filename)
+    # Sparsity targets
+    targets = [0.01, 0.05, 0.10, 0.20]
     @info "Converting $(basename(filename))"
     p = matread(filename)
     m, n = size(p["A"])
     try
-        lf = fit(
-            LassoPath,
-            p["A"],
-            p["b"][:, 1];
-            α = 1.0,
-            λ = [p["lambda"] / m],
-            intercept = false,
-            standardize = false
-        )
-        optval = 0.5 * norm(p["A"] * lf.coefs - p["b"], 2)^2 + p["lambda"] * norm(lf.coefs, 1)
-        @assert isapprox(optval, p["ftarget"], rtol = 1.0e-3)
-        p["optval"] = optval
-        p["b"] = p["A"]*lf.coefs
+        lastnnzratio, λminratio = 0.0, 1.0e-2
+        while lastnnzratio < targets[end]
+            λminratio /= 10
+            global lf = fit(
+                LassoPath,
+                p["A"],
+                p["b"][:, 1];
+                α = 1.0,
+                intercept = false,
+                standardize = false,
+                λminratio = λminratio
+            )
+            lastnnzratio = nnz(lf.coefs[:, end]) / m
+        end
+        p["optval"] = NaN
+        b = Matrix{Float64}(undef, m, 0)
+        for t in targets
+            best = argmin(abs.([nnz(lf.coefs[:,i]) / m for i = 1:length(lf.λ)] .- t))
+            b = hcat(b, p["A"] * lf.coefs[:, best])
+            @info "NNZ for target $t is $(nnz(lf.coefs[:, best]) / m)"
+        end
+        p["b"] = b
         delete!(p, "ftarget")
         delete!(p, "lambda")
         rm(filename)
         matwrite(filename, p; compress = true)
     catch e
         if isa(e, OutOfMemoryError)
-            @warn "Out of memory"
-            @warn "Deleting $filename"
+            @error "Out of memory"
+            @error "Deleting $filename"
             rm(filename)
+        else
+            throw(e)
         end
     end
 end
@@ -96,7 +110,11 @@ function getLasso2BP()
     if downloaded
         fullpath = datadir("exp_raw", destdir)
         for filename in readdir(fullpath; join = true)
-            Lasso2BP(filename)
+            if occursin("C", filename)
+                Lasso2BP(filename)
+            else
+                @info "Ignoring $filename"
+            end
         end
     end
 end
@@ -114,4 +132,6 @@ function main()
     dowload_l1testset(testurl, destdir)
 end
 
-main()
+if abspath(PROGRAM_FILE) == @__FILE__
+    main()
+end
