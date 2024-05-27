@@ -120,7 +120,7 @@ function getLasso2BP()
 end
 
 "Download and unpack all testsets"
-function main()
+function downloadtestsets()
     # Download testset from Lorentz, Pfetsch, and Tillmann
     testurl = "http://wwwopt.mathematik.tu-darmstadt.de/spear/software/L1_Comparison/SPEAR_L1_Testset_mat.zip"
     destdir = "L1_Testset_mat"
@@ -133,5 +133,5 @@ function main()
 end
 
 if abspath(PROGRAM_FILE) == @__FILE__
-    main()
+    downloadtestsets()
 end

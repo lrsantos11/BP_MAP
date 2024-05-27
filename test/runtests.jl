@@ -96,6 +96,7 @@ end
 # Downloads Tests from from the Lorentz, Pfetsch, and Tillmann and Lopes, Santos 
 # and Silva collections
 include(scriptsdir("downloadtestsets.jl"))
+downloadtestsets()
 
 # LPT tests
 
