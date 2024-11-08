@@ -1,7 +1,7 @@
 using DrWatson
 @quickactivate "BP_MAP"
 
-using ..BP_MAP
+using :BP_MAP
 
 using LinearAlgebra
 using JuMP
