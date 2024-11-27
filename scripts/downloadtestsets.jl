@@ -3,29 +3,15 @@ Download test sets for the Basis Pursuit problem.
 """
 
 using DrWatson
-@quickactivate "BP_MAP"
+@quickactivate :BP_MAP
 
 using LinearAlgebra
 import Downloads
-using ProgressBars
 using SparseArrays
 using MAT
 using Lasso
 
-"Create a progress bar to track downloads"
-function progressbar_factory()
-    pbar = ProgressBar(total = 100)
-
-    bar_status = 0
-    function updatebar(total, now)
-        total = total == 0 ? 1 : total
-        new_status = div(100 * now, total)
-        update(pbar, max(0, new_status - bar_status))
-        bar_status = new_status
-    end
-
-    return updatebar
-end
+include(scriptsdir("download_utils.jl"))
 
 "Download a testset"
 function dowload_l1testset(testurl, destdir)
