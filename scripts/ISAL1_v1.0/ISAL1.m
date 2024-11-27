@@ -124,6 +124,17 @@ end
 
 % Initialize parameters and variables :
 [dLBmode,dspl,maxitCG,p,stag,time,tolCG,m,n,scale,reset,CGmode,x,useHOC] = ISAL1_setparams(A,b,varargin{:});
+borig = [];
+normborig = 0.0;
+AAT = []; opts = [];
+sparseA = issparse(A); 
+fval0 = 0.0;   % true iff A is stored in sparse format
+freq = 0; % max. frequency of optimality tests (HOC)
+minsupptol = 0.0; % minimal threshold for support approximation
+percentage = 0.0; % percentage of obj. val. approx. supp. should carry
+suppstaglimit = 0; % terminate if same support in 10*freq it's
+dLB = 0;
+opt = 0.0;
 ISAL1_Initialize; % (nested function, see below)
 
 % Iteration information display header:
@@ -135,7 +146,7 @@ end
 % ==================== MAIN LOOP START ====================================
 while( (~opt) && (imp < stag) && (alphak > eps) && (toc(t) <= time) && (stagextend < stag) && (suppstag < suppstaglimit) )   
     % Display iteration information, if applicable:
-    if( mod(it,dspl) == 0 )
+    if( mod(it,dspl) == 0 && it ~= 0)
         feascurr = norm(A*xk-b,'inf');
         fprintf('%6d  |  %1.7e  |  %1.7e  |  %1.7e  |  %1.7e  |  %6d  |  %1.7e %%\n',it,fcurr,fval,alphak,feascurr,suppxk,100*(fval-dLBbest)/fval);   
     end
@@ -402,6 +413,8 @@ end
 
 % Display solution information (if applicable):
 if( ~isinf(dspl) )
+    display(dspl);
+
     fprintf('-------------------------------------------------------------------------------------------------------------------\n');
     fprintf('%6d  |  %1.7e  |  %1.7e  |  %1.7e  |  %1.7e  |  %6d  |  %1.7e %%\n',it,fval,fval,alphak,err,numel(supp(x,supptol)),100*(fval-dLBbest)/fval);   
     fprintf('-------------------------------------------------------------------------------------------------------------------\n');
