@@ -37,9 +37,9 @@ function download_ISAL1()
 
     #Apply patch to ISAL1
     ISALpatch = scriptsdir("ISAL1.patch")
-    ISAL1patch_path = "data/exp_raw/ISAL1_v1.0"
+    ISAL1patch_path = datadir("exp_raw", "ISAL1_v1.0")
     try
-        apply_git_patch(ISALpatch, ISAL1patch_path)
+        apply_patch(ISALpatch, ISAL1patch_path)
     catch e
         @info "Patch already applied"
     end

@@ -24,8 +24,8 @@ function progressbar_factory()
     return updatebar
 end
 
-function apply_git_patch(patch_file, target_dir)
+function apply_patch(patch_file, target_dir)
     # Comando para aplicar o patch
-    patchcmd = `git apply --directory=$target_dir $patch_file`
+    patchcmd = pipeline(`patch -p1 --directory=$target_dir`; stdin=patch_file)
     run(patchcmd)
 end
