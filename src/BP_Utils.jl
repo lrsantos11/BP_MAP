@@ -280,6 +280,7 @@ end
 
 # "Solve a least squares using an iterative solver"
 function lsHOC(A::AbstractLinearOperator, b) 
+    ## TODO: Improve max iterations of CG in this case. 
     return Vector(lslq(A, b)[1])
 end
 
@@ -309,10 +310,11 @@ function heuristic_optimality_check(
     
     ## TODO: See where the try-catch is needed
     try
-        w = lsHOC(Aₛ', vectype(sign.(xSolₛ)))
+        w = lsHOC(Aₛ', vectype(sign.(xSolₛ))) #Lorenz is always using CG here
         if isapprox(norm(A'w, Inf), one(T), atol = tol)
             xSol .= 0.0
             xSolₛ .= lsHOC(Aₛ, prob.accelb)
+            # Should we use QR? Lorenz uses matlab linsolve
 
             norm_xSol_1 = norm(xSol, 1)
             solve_Axb = norm(A * xSol - b, Inf) / max(norm(b, Inf), 1.0) <= tol
