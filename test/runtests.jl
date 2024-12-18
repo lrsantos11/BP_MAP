@@ -18,6 +18,10 @@ if solvertype == :gurobi
     global gurobi_env = Gurobi.Env()
 end
 
+# Include the BP_ISAL1.jl scripts
+include(scriptsdir("BP_ISAL1.jl"))
+
+
 "Relative error assuming that b is not 0"
 function relerror(a, b)
     return norm(a - b) / norm(b)
@@ -63,16 +67,18 @@ end
     @info "BP-MAP with HOC status is $status with  $(it) iterations and $(inner_it) inner iterations"
     @info "xMAP - sol = $(relerror(xMAP, sol))"
     @test status == :Solved
+    xISAL, time_ISAL, it_ISAL, status_ISAL = solveBP_ISAL1(probB1_HL14, verbose = false)
+    @info "ISAL with HOC status is $status_ISAL with  $(it_ISAL) iterations"
+    @info "xISAL - sol = $(relerror(xISAL, sol))"
+    @info "Elapsed CPU time for ISAL1: $time_ISAL"
 end
 
 ##
 @testset "Example B2 [HL2014]" begin
     @info "Example B.2 of Hesse and Luke 2014"
     itmax = 500
-    A = [
-        1 -0.5 0
-        0 0.5 -1
-    ]
+    A = [1 -0.5 0
+        0 0.5 -1 ]
     m, n = size(A)
     b = [-5.0, 5]
     probB2_HL14 = BPProblem(A, b)
@@ -88,9 +94,14 @@ end
     @test xMAP ≈ sol
     xMAP, zMAP, it, inner_it, status =
         solveBP_MAP(probB2_HL14, itmax = itmax, ε = tol, ε_MAP = tol, usehoc = true)
+    time_BP_MAP = @belapsed solveBP_MAP($probB2_HL14, itmax = $itmax, ε = $tol, ε_MAP = $tol, usehoc = true)
+    @info "Elapsed CPU time for BP_MAP: $time_BP_MAP"
     @info "BP-MAP status is $status with  $(it) iterations and $(inner_it) inner iterations"
     @info "xMAP - sol = $(relerror(xMAP, sol))"
     @test status == :Solved
+    xISAL, time_ISAL, it_ISAL, status_ISAL = solveBP_ISAL1(probB2_HL14, verbose = false)
+    @info "xISAL - sol = $(relerror(xISAL, sol))"
+    @info "Elapsed CPU time for ISAL1: $time_ISAL"
 end
 
 ##
@@ -150,6 +161,11 @@ LPT_testset = glob("*.mat", datadir("exp_raw", "L1_Testset_mat"));
             set_silent(m)
             solveBP_LPmodel!(m)
         end
+
+        @info "Elapsed CPU time for solving with ISAL1 Solver"
+        xISAL, time_ISAL, it_ISAL, status_ISAL = solveBP_ISAL1(prob)
+        @info "xISAL - sol = $(relerror(xISAL, sol))"
+        @info "Elapsed CPU ISAL1:\n  $time_ISAL s"
 
         println("="^10)
     end
@@ -213,7 +229,13 @@ LSS_testset = glob("*.mat", datadir("exp_raw", "lassobp_mat"));
         @info "Objective = $(norm(xMAP, 1))"
         @info "Elapsed CPU time for BP_MAP with HOC"
         # @btime solveBP_MAP($prob, itmax = $itmax, ε = $tol, ε_MAP = $tol, usehoc = true)
-        
+
+        # ISAL1
+        @info "Elapsed CPU time for solving with ISAL1 Solver"
+        @time xISAL, time_ISAL, it_ISAL, status_ISAL = solveBP_ISAL1(prob)
+        @info "xISAL - sol = $(relerror(xISAL, prob.sol))"
+        @info "Elapsed CPU ISAL1:\n  $time_ISAL s"
         println("="^10)
+
     end
 end
