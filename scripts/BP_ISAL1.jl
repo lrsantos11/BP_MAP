@@ -67,6 +67,7 @@ function solveBP_ISAL1(prob::AbstractBPP;
     # ε::Number = 1e-6,
     verbose::Bool = false,
     ISAL1_path::String = ISAL1_path,
+    compute_time::Bool = true,
     kwargs...,
     )
     # Bring variables into scope
@@ -76,16 +77,31 @@ function solveBP_ISAL1(prob::AbstractBPP;
     mxcall(:addpath, 0, ISAL1_path)
     verbose ? displ = 1 : displ = Inf
     # run MATLAB ISAL_1 function to solve the problem
-    mat"""
-    tic
-    % Initialization
-    [$x, $fval, $err, $exfl, $it] = ISAL1($A, $b, 1, -1, $displ);
-    $time = toc; 
-    """
+    
+    compute_time ? rounds = 10 : rounds = 1
+    elapsed_total = 0.0
+    _, num_cols = size(A)
+    xISAL = similar(b, num_cols)
+    it_total = 0
+    status = 0
+    for _ in 1:rounds
+        mat"""
+        tic
+        % Initialization
+        [$x, $fval, $err, $exfl, $it] = ISAL1($A, $b, 1, -1, $displ);
+        $time = toc; 
+        """
+        xISAL .= x
+        it_total = it
+        elapsed_total += time
+        status = exfl
+    end
+    elapsed_total  /=  rounds
+
     verbose && begin @info "ISAL1 status: $exfl"
         @info "ISAL1 iterations: $it"
         @info "ISAL1 error: $err"
-        @info "ISAL1 time: $time"
+        @info "ISAL1 time: $elapsed_total"
     end
-    return x, time
+    return xISAL, elapsed_total, it_total, status
 end
