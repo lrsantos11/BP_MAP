@@ -44,7 +44,9 @@ function MAP(
     itmax_MAP::Int = 100,
     xSol::AbstractArray = [],
     verbose::Bool = false,
+    timeout=3600,
 )
+    start = time()
     solution_given = !isempty(xSol)
     iter = 0
     xMAP = x₀
@@ -70,7 +72,7 @@ function MAP(
         solution_given ? tolMAP = norm(xMAP - xSol, Inf) : tolMAP = norm(ProjA - xMAP, Inf)
         solved = tolMAP < ε_MAP
         solved && (status = :Solved)
-        tired = iter >= itmax_MAP
+        tired = (iter >= itmax_MAP || time() - start > timeout)
     end
     verbose && @info "MAP: Status $status"
     return xMAP, iter, status

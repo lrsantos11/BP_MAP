@@ -1,7 +1,7 @@
 using DrWatson
 @quickactivate "BP_MAP"
 
-using ..BP_MAP
+using :BP_MAP
 
 using LinearAlgebra
 using JuMP
@@ -25,7 +25,6 @@ function buildBP_LPModel(prob::AbstractBPP; solver = HiGHS.Optimizer, verbose = 
     @objective(model, Min, sum(xplus) + sum(xminus))
     @constraint(model, prob.A * xplus - prob.A * xminus == prob.b)
 
-    # Solve the model and return the solution
     return model
 end
 

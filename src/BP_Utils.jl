@@ -43,18 +43,16 @@ A Basis Pursuit problem data: ``\\min_x \\| x \\|_1`` s.t. ``Ax = b``
 """
 abstract type AbstractBPP end
 
-abstract type AbstractDirBPP <: AbstractBPP end
-
-abstract type AbstractItBPP <: AbstractBPP end
+abstract type AbstractSparseBPP <: AbstractBPP end
 
 "Abstract sparse matrix where matrix-vector multiply is efficient with the transpose"
-abstract type AbstractItCSCBPP <: AbstractItBPP end
+abstract type AbstractSpaseCSCBPP <: AbstractSparseBPP end
 
 "Abstract sparse matrix where direct matrix-vector multiply is efficient"
-abstract type AbstractItCSRBPP <: AbstractItBPP end
+abstract type AbstractSparseCSRBPP <: AbstractSparseBPP end
 
 "BPProblem with dense matrices"
-struct DenseBPP{T} <: AbstractDirBPP
+struct DenseBPP{T} <: AbstractBPP
     A::Matrix{T}
     b::Vector{T}
     sol::Vector{T}
@@ -65,7 +63,7 @@ struct DenseBPP{T} <: AbstractDirBPP
 end
 
 "BPProblem with sparse matrices in CPU"
-struct SparseCSCBPP{T} <: AbstractItCSCBPP
+struct SparseCSCBPP{T} <: AbstractSpaseCSCBPP
     A::SparseMatrixCSC{T}
     b::Vector{T}
     sol::Vector{T}
@@ -76,7 +74,7 @@ struct SparseCSCBPP{T} <: AbstractItCSCBPP
 end
 
 "BPProblem with sparse matrices in NVidia GPU"
-struct CuSparseBPP{T} <: AbstractItCSRBPP
+struct CuSparseBPP{T} <: AbstractSparseCSRBPP
     A::SparseMatrixCSC{T}
     b::Vector{T}
     sol::Vector{T}
@@ -118,6 +116,7 @@ function BPProblem(
     end
 
     if issparse(A)
+        A, b = normrows(A, b)
         if acceltype == noaccel 
             return SparseCSCBPP(A, b, sol, optval, A, convert(SparseMatrixCSC, A'), b)
         elseif acceltype == CUDAaccel
@@ -136,6 +135,20 @@ function BPProblem(
     else
         return DenseBPP(A, b, sol, optval, A, Matrix(A'), b)
     end
+end
+
+"Normalize the rows of a sparseMatrixCSC"
+function normrows(A::SparseMatrixCSC, b::Vector)
+    m, n = size(A)
+    At = convert(SparseMatrixCSC, A')
+    ns = [norm(At[:, i]) for i in 1:m]
+    nonzeros = ns .>= sqrt(eps(eltype(A)))
+    if sum(nonzeros) > 0
+        At, b, ns = At[:, nonzeros], b[nonzeros], ns[nonzeros]
+        A = convert(SparseMatrixCSC, At')
+    end
+    normmatrix = spdiagm(1 ./ ns)
+    return normmatrix*A, normmatrix*b
 end
 
 "Construct a BPproblem without a solution or optimal value"
@@ -172,8 +185,32 @@ function BPProblem(A, b, optval::AbstractFloat; acceltype = acceltype)
     return BPProblem(A, b, sol, optval; acceltype = acceltype)
 end
 
+"Builds a LinearOperator to represent A"
+function Afactory(p::AbstractSpaseCSCBPP)
+    T = eltype(p.accelA)
+    m, n = size(p)
+    return LinearOperator(
+        T, m, n, false, false, 
+        (y, v) -> mul!(y, p.accelAt', v),
+        (y, v) -> mul!(y, p.accelA', v), 
+        nothing
+    )
+end
+
+"Builds a LinearOperator to represent A"
+function Afactory(p::AbstractSparseCSRBPP)
+    T = eltype(p.accelA)
+    m, n = size(p)
+    return LinearOperator(
+        T, m, n, false, false, 
+        (y, v) -> mul!(y, p.accelA, v),
+        (y, v) -> mul!(y, p.accelAt, v), 
+        nothing
+    )
+end
+
 "Builds a LinearOperator to represent AA'"
-function AAtfactory(p::AbstractItCSCBPP)
+function AAtfactory(p::AbstractSpaseCSCBPP)
     T = eltype(p.accelA)
     m, n = size(p)
     ytemp = typeof(p.accelb)(undef, n)
@@ -185,7 +222,7 @@ function AAtfactory(p::AbstractItCSCBPP)
 end
 
 "Builds a LinearOperator to represent AA'"
-function AAtfactory(p::AbstractItCSRBPP)
+function AAtfactory(p::AbstractSparseCSRBPP)
     T = eltype(p.accelA)
     m, n = size(p)
     ytemp = typeof(p.accelb)(undef, n)
@@ -197,7 +234,7 @@ function AAtfactory(p::AbstractItCSRBPP)
 end
 
 "Construct a IndAffine from ProximalOperators.jl using BPP that should use a direct solver"
-function IndAffine(prob::AbstractDirBPP)
+function IndAffine(prob::DenseBPP)
     return IndAffine(prob.accelA, prob.accelb)
 end
 
@@ -237,7 +274,7 @@ function readl1test(
 end
 
 "Get a view of the columns of A indexed by S that is suited to solve least square systems using lsHOC"
-function select(prob::AbstractDirBPP, S)
+function select(prob::DenseBPP, S)
     Aₛ = @view prob.A[:, S]
     return qr(Aₛ)
 end
@@ -280,12 +317,11 @@ end
 
 # "Solve a least squares using an iterative solver"
 function lsHOC(A::AbstractLinearOperator, b) 
-    return Vector(lslq(A, b)[1])
+    return Vector(lsmr(A, b)[1])
 end
 
 """
     Heuristic for optimality Check from [Lorenz2014, Alg. 2]
-
 """
 function heuristic_optimality_check(
     xSol,

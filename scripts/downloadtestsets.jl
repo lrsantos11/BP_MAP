@@ -11,6 +11,7 @@ using ProgressBars
 using SparseArrays
 using MAT
 using Lasso
+using Krylov
 
 "Create a progress bar to track downloads"
 function progressbar_factory()
@@ -57,42 +58,75 @@ function dowload_l1testset(testurl, destdir)
     return true
 end
 
+"Try to solve Ax = b to see if the matrix is too badly conditioned"
+function check_residual(A, b, threshold = 1.0e-10)
+    @info "Solving a linear system Ax = b to check residual"
+    # If the dense verision of the matrix uses less than 4GB try a full
+    # factorization.
+    if 8 * prod(size(A)) < 4 / 8 * 2^30
+        xsol = A \ b
+        resnorm = norm(A * xsol - b) / max(1.0, norm(b))
+        solved = resnorm < threshold
+        if !solved
+            @error "Too large residual = $resnorm"
+        end
+    else
+        xsol, stats = cgne(A, b)
+        solved = stats.solved
+        if !solved
+            @error "System can not be solved using a Krylov method."
+        end
+    end
+    return solved
+end
+
+
 "Convert ther Lasso problem in filename to BP format"
 function Lasso2BP(filename)
     # Sparsity targets
     targets = [0.01, 0.05, 0.10, 0.20]
     @info "Converting $(basename(filename))"
     p = matread(filename)
-    m, n = size(p["A"])
+    A, b = p["A"], p["b"][:, 1]
+    @info "Dimensions of A: $(size(A))"
+    m, _ = size(A)
     try
         lastnnzratio, λminratio = 0.0, 1.0e-2
         while lastnnzratio < targets[end]
             λminratio /= 10
             global lf = fit(
                 LassoPath,
-                p["A"],
-                p["b"][:, 1];
+                A,
+                b;
                 α = 1.0,
                 intercept = false,
                 standardize = false,
-                λminratio = λminratio
+                λminratio = λminratio,
             )
             lastnnzratio = nnz(lf.coefs[:, end]) / m
         end
-        p["optval"] = NaN
         b = Matrix{Float64}(undef, m, 0)
         for t in targets
-            best = argmin(abs.([nnz(lf.coefs[:,i]) / m for i = 1:length(lf.λ)] .- t))
-            b = hcat(b, p["A"] * lf.coefs[:, best])
+            best = argmin(abs.([nnz(lf.coefs[:, i]) / m for i = 1:length(lf.λ)] .- t))
+            b = hcat(b, A * lf.coefs[:, best])
             @info "NNZ for target $t is $(nnz(lf.coefs[:, best]) / m)"
         end
-        p["b"] = b
-        delete!(p, "ftarget")
-        delete!(p, "lambda")
-        rm(filename)
-        matwrite(filename, p; compress = true)
+        A, b = simplify(A, b)
+        good_condition = check_residual(A, Vector(b[:, 2]))
+        if good_condition
+            p["optval"] = NaN
+            p["b"] = b
+            p["A"] = A
+            delete!(p, "ftarget")
+            delete!(p, "lambda")
+            rm(filename)
+            matwrite(filename, p; compress = true)
+        else
+            @error "Deleting $filename"
+            rm(filename)
+        end
     catch e
-        if isa(e, OutOfMemoryError)
+        if isa(e, OutOfMemoryError) || isa(e, SparseArrays.CHOLMOD.CHOLMODException)
             @error "Out of memory"
             @error "Deleting $filename"
             rm(filename)
@@ -102,12 +136,27 @@ function Lasso2BP(filename)
     end
 end
 
-"Dowload and covert Lasso test set from Lopes, Santos and Silva"
+"Eliminate reduntant lines from A and RHS"
+function simplify(A, b)
+    @info "Eliminating redundant lines from A"
+    m, _ = size(A)
+    At = convert(SparseMatrixCSC, A')
+    fact = qr(At)
+    valid =
+        [abs(fact.R[i, i] / norm(At[:, fact.pcol[i]])) > sqrt(eps(eltype(A))) for i = 1:m]
+    @info "Deleting $(m - sum(valid)) lines"
+    valid = fact.pcol[valid]
+    At, b = At[:, valid], b[valid, :]
+    @info "Done"
+    return convert(SparseMatrixCSC, At'), b
+end
+
+"Dowload and convert Lasso test set from Lopes, Santos and Silva"
 function getLasso2BP()
     testurl = "https://drive.usercontent.google.com/download?id=1T4gCmV9rJ86jzPhRZ6B7ERQVSbvdsagU&export=download&authuser=1&confirm=t&uuid=46a74bc8-6ae6-40f8-9e75-f25228b2796f&at=APZUnTVUk8zQ_rr4YwCrQwdySM60:1712342173600"
     destdir = "Data-Lasso"
     downloaded = dowload_l1testset(testurl, destdir)
-    if downloaded
+    if true #downloaded
         fullpath = datadir("exp_raw", destdir)
         for filename in readdir(fullpath; join = true)
             if occursin("C", filename)
