@@ -22,6 +22,10 @@ if solvertype == :gurobi
     global gurobi_env = Gurobi.Env()
 end
 
+
+# Include the BP_ISAL1.jl scripts
+include(scriptsdir("BP_ISAL1.jl"))
+
 "Relative error assuming that b is not 0"
 function relerror(a, b)
     return norm(a - b) / norm(b)
