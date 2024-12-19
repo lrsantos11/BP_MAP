@@ -1,5 +1,6 @@
 using DrWatson
-@quickactivate "BP_MAP"
+@quickactivate :BP_MAP
+
 using Test
 acceleration::AccelerationTarget = CUDAaccel
 mattype::MatType = automat

@@ -16,9 +16,7 @@ function download_ISAL1()
 
     if isdir(ISAL1_path)
         @info ISAL1_path * " already exists, so no download is necessary."
-        
     else
-
         # Create a progress bar as the download is long
         updatebar = progressbar_factory()
         updatebar(0, 0)
