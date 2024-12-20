@@ -11,6 +11,19 @@ Authors: LRS an PJSS
 
 module BP_MAP
 
+cpu_model = Sys.cpu_info()[1].model
+@info cpu_model
+if occursin("Intel", cpu_model) || occursin("AMD", cpu_model)
+    global islinux = true
+    using MKL
+    using MKLSparse
+    @info "Using MKL and MKLSparse"
+else
+    global islinux = false
+    using AppleAccelerate
+    using ThreadedSparseArrays
+end
+
 using Printf
 using LinearAlgebra
 using SparseArrays
@@ -18,7 +31,7 @@ using LinearOperators
 using QRMumps
 using CUDA
 using CUDA.CUSPARSE
-import ProximalOperators: IndBallL1
+import ProximalOperators: IndBallL1, IndAffine
 #import Krylov: CgneSolver, cgne!, CgSolver, cg!, cg, statistics, MinaresSolver, minares!
 using Krylov
 using Gurobi, JuMP
@@ -157,7 +170,12 @@ end
 "Factory for the projection function onto Ax = b using QRMumps"
 function affqrmumpsproj(prob::SparseCSCBPP, verbose = false)
     m, n = size(prob)
-    qrm_init(8)
+    if "OMP_NUM_THREADS" in keys(ENV)
+        n_threads = parse(Int, ENV["OMP_NUM_THREADS"])
+    else
+        n_threads = Threads.nthreads()
+    end
+    qrm_init(n_threads)
     spmat = qrm_spmat_init(prob.accelA)
     spfct = qrm_spfct_init(spmat)
     qrm_analyse!(spmat, spfct, transp='t')

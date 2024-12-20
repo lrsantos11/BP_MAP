@@ -34,6 +34,8 @@ end
 ##
 # Downloads Tests sets
 include(scriptsdir("downloadtestsets.jl"))
+downloadtestsets()
+
 # USe the testset from Lorentz, Pfetsch, and Tillmann
 LPT_testset = glob("*.mat", datadir("exp_raw", "L1_Testset_mat"));
 
@@ -46,20 +48,25 @@ bp_map_times, bp_hoc_times, lp_times, isal_times =
 itmax = 2000
 tol, tol_HOC = 1e-6, 1.0e-10
 success_prec = 10 * tol
-for instance in LPT_testset[1:10]
+ntests = length(LPT_testset)
+testnum = 0
+for instance in LPT_testset
     # Read test
+    global testnum += 1
     prob_name = basename(instance)
     push!(pnames, prob_name)
+    prob_path = joinpath("L1_Testset_mat", prob_name)
+    prob = readl1test(prob_path; mattype = mattype, acceltype = acceleration)
     m, n = size(prob)
     push!(pms, m)
     push!(pns, n)
-    prob_path = joinpath("L1_Testset_mat", prob_name)
-    prob = readl1test(prob_path; mattype = mattype, acceltype = acceleration)
     sol = prob.sol
     @info "Problem $(prob_name) - size: $(size(prob))"
+    @info @sprintf("%d / %d (%.2g %%)", testnum, ntests, 100.0*(testnum / ntests))
     @info "Acceleration Matrix type: $(typeof(prob.accelA))"
 
-    @info "BP_MAP + HOC" * "-"^25
+    # BP_MAP followed by a HOC
+    @info "BP_MAP + HOC " * "-"^60
     xMAP, zMAP, it, inner_it, status =
         solveBP_MAP(prob, itmax = itmax, ε = tol, ε_MAP = tol)
     @info "BP-MAP status is $status with  $(it) iterations and $(inner_it) inner iterations"
@@ -78,7 +85,8 @@ for instance in LPT_testset[1:10]
     push!(bp_map_dist, dist)
     @info @sprintf("Median = %.2f s", bp_map_times[end] / 1.0e9)
 
-    @info "BP_MAP with HOC" * "-"^25
+    # BP_MAP with HOC
+    @info "BP_MAP with HOC " * "-"^60
     xMAP, zMAP, it, inner_it, status =
         solveBP_MAP(prob, itmax = itmax, ε = eps(1.0), ε_MAP = tol, usehoc = true)
     @info "BP-MAP with HOC status is $status with  $(it) iterations and $(inner_it) inner iterations"
@@ -92,10 +100,10 @@ for instance in LPT_testset[1:10]
     @info @sprintf("Median = %.2f s", bp_hoc_times[end] / 1.0e9)
 
     # Read problem again as GPU is not supported by LP or ISAL
-    prob = readl1test(prob_path; mattype = mattype, acceltype = acceleration)
+    prob = readl1test(prob_path; mattype = mattype, acceltype = noaccel)
 
-    # Use Gurobi if avaliable.
-    @info "LP" * "-"^25
+    # LP solver, use Gurobi if avaliable.
+    @info "LP " * "-"^60
     if solvertype == :gurobi
         solver = () -> Gurobi.Optimizer(gurobi_env)
     else
@@ -115,6 +123,16 @@ for instance in LPT_testset[1:10]
     push!(lp_dist, dist)
     @info @sprintf("Median = %.2f s", lp_times[end] / 1.0e9)
 
+    # ISAL1
+    @info "ISAL1 " * "-"^60
+    @info "Elapsed CPU time for solving with ISAL1 Solver"
+    xISAL, time_ISAL, it_ISAL, status_ISAL = solveBP_ISAL1(prob)
+    dist = relerror(xISAL, sol)
+    solved = dist < success_prec
+    @info @sprintf("Mean = %.2f s", time_ISAL)
+    push!(isal_times, solved ? time_ISAL : -time_ISAL)
+    push!(isal_dist, dist)
+
     println("="^72)
 end
 
@@ -122,13 +140,15 @@ end
 LPT_data = DataFrame(
     Problems = pnames,
     M = pms,
-    N = pms,
+    N = pns,
     LP = lp_times,
     LP_dist = lp_dist,
+    ISAL = isal_times,
+    ISAL_dist = isal_dist,
     BP_MAP = bp_map_times,
     BP_MAP_dist = bp_map_dist,
     BP_HOC = bp_hoc_times,
-    BP_HOC_DIST = bp_hoc_dist,
+    BP_HOC_dist = bp_hoc_dist,
 )
 # Convert time to seconds
 LPT_data[!, [:LP, :BP_MAP, :BP_HOC]] ./= 1.0e9

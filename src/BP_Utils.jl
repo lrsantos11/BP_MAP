@@ -46,7 +46,7 @@ abstract type AbstractBPP end
 abstract type AbstractSparseBPP <: AbstractBPP end
 
 "Abstract sparse matrix where matrix-vector multiply is efficient with the transpose"
-abstract type AbstractSpaseCSCBPP <: AbstractSparseBPP end
+abstract type AbstractSparseCSCBPP <: AbstractSparseBPP end
 
 "Abstract sparse matrix where direct matrix-vector multiply is efficient"
 abstract type AbstractSparseCSRBPP <: AbstractSparseBPP end
@@ -63,7 +63,7 @@ struct DenseBPP{T} <: AbstractBPP
 end
 
 "BPProblem with sparse matrices in CPU"
-struct SparseCSCBPP{T} <: AbstractSpaseCSCBPP
+struct SparseCSCBPP{T} <: AbstractSparseCSCBPP
     A::SparseMatrixCSC{T}
     b::Vector{T}
     sol::Vector{T}
@@ -186,7 +186,7 @@ function BPProblem(A, b, optval::AbstractFloat; acceltype = acceltype)
 end
 
 "Builds a LinearOperator to represent A"
-function Afactory(p::AbstractSpaseCSCBPP)
+function Afactory(p::AbstractSparseCSCBPP)
     T = eltype(p.accelA)
     m, n = size(p)
     return LinearOperator(
@@ -210,7 +210,7 @@ function Afactory(p::AbstractSparseCSRBPP)
 end
 
 "Builds a LinearOperator to represent AA'"
-function AAtfactory(p::AbstractSpaseCSCBPP)
+function AAtfactory(p::AbstractSparseCSCBPP)
     T = eltype(p.accelA)
     m, n = size(p)
     ytemp = typeof(p.accelb)(undef, n)

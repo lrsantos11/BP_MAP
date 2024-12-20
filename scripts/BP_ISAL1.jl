@@ -1,12 +1,9 @@
 using DrWatson
 @quickactivate :BP_MAP
-
-
 using LinearAlgebra
 using BenchmarkTools
 
 include(scriptsdir("download_utils.jl"))
-
 
 function download_ISAL1()
     # Download ISAL1 from the repository
@@ -44,22 +41,21 @@ function download_ISAL1()
     return ISAL1_path
 end
 
-
 global ISAL1_path = download_ISAL1()
 
 # Add MATLAB to the environment path - change this to your MATLAB installation path
 matlab_env = "/opt/matlab/R2021b/"
-try 
+try
     using MATLAB
-catch 
+catch
     using Pkg
     ENV["MATLAB_ROOT"] = matlab_env
     Pkg.build("MATLAB")
     using MATLAB
 end
 
-
-function solveBP_ISAL1(prob::AbstractBPP;
+function solveBP_ISAL1(
+    prob::AbstractBPP;
     # usehoc = false,
     # itmax::Int = 1_000,
     # ε::Number = 1e-6,
@@ -67,7 +63,7 @@ function solveBP_ISAL1(prob::AbstractBPP;
     ISAL1_path::String = ISAL1_path,
     compute_time::Bool = true,
     kwargs...,
-    )
+)
     # Bring variables into scope
     @views A = prob.A
     @views b = prob.b
@@ -75,31 +71,46 @@ function solveBP_ISAL1(prob::AbstractBPP;
     mxcall(:addpath, 0, ISAL1_path)
     verbose ? displ = 1 : displ = Inf
     # run MATLAB ISAL_1 function to solve the problem
-    
+
     compute_time ? rounds = 10 : rounds = 1
-    elapsed_total = 0.0
     _, num_cols = size(A)
     xISAL = similar(b, num_cols)
     it_total = 0
     status = 0
-    for _ in 1:rounds
-        mat"""
-        tic
-        % Initialization
-        [$x, $fval, $err, $exfl, $it] = ISAL1($A, $b, 1, -1, $displ);
-        $time = toc; 
-        """
-        xISAL .= x
-        it_total = it
-        elapsed_total += time
-        status = exfl
-    end
-    elapsed_total  /=  rounds
 
-    verbose && begin @info "ISAL1 status: $exfl"
+    mat"""
+    tic
+    % Initialization
+    [$x, $fval, $err, $exfl, $it] = ISAL1($A, $b, 1, -1, $displ);
+    $time = toc; 
+    """
+
+    # If we need to compute time and the solution was too fast
+    elapsed_time = 0.0
+    if compute_time && time < 10
+        rounds = 10 ÷ time
+        @show rounds, time
+        for _ = 1:rounds
+            mat"""
+            tic
+            % Initialization
+            [$x, $fval, $err, $exfl, $it] = ISAL1($A, $b, 1, -1, $displ);
+            $time = toc; 
+            """
+            elapsed_time += time
+        end
+        elapsed_time /= rounds
+    else
+        elapsed_time = time
+    end
+    xISAL .= x
+    it_total = it
+    status = exfl
+    verbose && begin
+        @info "ISAL1 status: $exfl"
         @info "ISAL1 iterations: $it"
         @info "ISAL1 error: $err"
         @info "ISAL1 time: $elapsed_total"
     end
-    return xISAL, elapsed_total, it_total, status
+    return xISAL, elapsed_time, it_total, status
 end
