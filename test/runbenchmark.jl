@@ -131,8 +131,8 @@ function lpt_bechmark()
 
         # BP_MAP with HOC
         duration, dist = solve_with_BPMAP(prob, true)
-        push!(bp_hoc_times, duration)
-        push!(bp_hoc_dist, dist)
+        push!(results[:BP_HOC], duration)
+        push!(results[:BP_HOC_dist], dist)
 
         # Read problem again as GPU is not supported by LP or ISAL
         prob = readl1test(prob_path; mattype = mattype, acceltype = noaccel)
