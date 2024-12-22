@@ -19,6 +19,7 @@ using CUDA
 using CUDA.CUSPARSE
 import ProximalOperators: IndAffine
 import Base: size, eltype
+using LinearOperators
 import Krylov: cgls, lslq
 
 cpu_model = Sys.cpu_info()[1].model
@@ -318,7 +319,7 @@ end
 # "Solve a least squares using an iterative solver"
 function lsHOC(A::AbstractLinearOperator, b) 
     ## TODO: Improve max iterations of CG in this case. 
-    return Vector(lsmr(A, b)[1])
+    return Vector(cgls(A, b)[1])
 end
 
 """

@@ -41,6 +41,9 @@ export solveBP_MAP, affproxproj, affqrmumpsproj, affkrylovproj, affkktproj, affg
 include("BP_Utils.jl")
 include("MAP_Utils.jl")
 
+"Inf norm to use in relative accepatance criteria"
+norminf(x) = norm(x, Inf)
+
 """
 Using the Method of Alternating Projections for the Basis Pursuit problem
 min ||x||₁ 
@@ -56,15 +59,17 @@ function solveBP_MAP(
     itmax::Int = 1000,
     ε::Number = 1e-6,
     ε_MAP::Number = 1e-6,
+    δ_HOC::Number = 1.0e-10,
     verbose::Bool = false,
     x₀::AbstractVector = [],
     BP_solution::AbstractVector = [],
     timeout = 3600,
+    trybinsearch = true,
     kwargs...,
 )
     start = time()
-    # Parameter to control support identification
-    δ = 1.0e-12
+    # Define if values are close
+    isclose(x, y) = isapprox(x, y; rtol = ε, atol = ε, norm  = norminf)
 
     _, n = size(prob.A)
     Ta = eltype(prob.A)
@@ -76,7 +81,7 @@ function solveBP_MAP(
     verbose && @printf("%6d: ", 0)
     xMAP = ProjAffine(x₀)
     verbose && println()
-    distance = norm(xMAP, 2)
+    dnorm2 = norm(xMAP, 2)
     radius = 0.0
     solved = false
     tired = false
@@ -86,32 +91,45 @@ function solveBP_MAP(
     tolBP = 1.0
     repsupport = 0
     support = Int[]
+    lowradius, upradius = norm(xMAP, 2), norm(xMAP, 1)
     while !(solved || tired)
         verbose && @printf("%6d: ", it + 1)
-        radius += distance
+        if trybinsearch
+            radius = 0.5*(lowradius + upradius)
+        else
+            radius += dnorm2
+        end
         BallL1 = IndBallL1(radius)
         global Proj_BallL1 = x -> ProjectIndicator(BallL1, x)
         zMAP, inner_it, inner_status = MAP(
             xMAP,
             ProjAffine,
             Proj_BallL1,
-            itmax_MAP = itmax,
+            itmax_MAP = 100*itmax,
             verbose = false,
             ε_MAP = ε_MAP,
             kwargs...,
         )
         xMAP = ProjAffine(zMAP)
-        distance = norm(xMAP - zMAP, 2)
+        dnorm2 = norm(xMAP - zMAP, 2)
+        if trybinsearch
+            if inner_status == :Solved 
+                upradius = radius
+            elseif inner_status == :Infeasible
+                lowradius = radius
+            end
+        end
+
         it += 1
         inner_it_total += inner_it
 
         # Try to identify the support and apply HOC if reasonable 
-        new_support = findall(x -> abs(x) > δ, zMAP)
+        new_support = findall(x -> abs(x) > δ_HOC, zMAP)
         if usehoc && (new_support == support)
             repsupport += 1
             if repsupport == 1
                 verbose && print("H")
-                xhoc, hocstatus = heuristic_optimality_check(zMAP, prob; δ = δ)
+                xhoc, hocstatus = heuristic_optimality_check(zMAP, prob; δ = δ_HOC)
                 if hocstatus == :success
                     verbose && (println(); @info "HOC declared success")
                     xMAP = xhoc
@@ -124,12 +142,17 @@ function solveBP_MAP(
             support = new_support
         end
 
-        if inner_status == :Solved
+        if trybinsearch
+            solved = isclose(upradius, lowradius)
+        else
+            solved = inner_status == :solved || isclose(xMAP, zMAP)
+        end
+        if solved
             verbose && (println(); @info "Inner Solved")
-            verbose && @info "Distance = $distance"
+            verbose && @info "Distance = $dnorm2"
             verbose && @info "Applying HOC"
             if usehoc
-                xhoc, hocstatus = heuristic_optimality_check(zMAP, prob; δ = δ)
+                xhoc, hocstatus = heuristic_optimality_check(zMAP, prob; δ = δ_HOC)
                 if hocstatus == :success
                     verbose && @info "HOC declared success"
                     xMAP = xhoc
@@ -140,12 +163,11 @@ function solveBP_MAP(
             status = :Solved
             break
         end
-        tolBP = BP_solution_given ? norm(xMAP - BP_solution, 2) : distance
-        solved = ((tolBP < ε) || (distance < ε))
-        if solved
+        tolBP = BP_solution_given ? isclose(xMAP, BP_solution) : false
+        if tolBP
             verbose && println(); @info "Solved"
             verbose && @info "it = $it"
-            verbose && @info "distance = $distance"
+            verbose && @info "distance = $dnorm2"
             verbose && @info "inner_it_total = $inner_it_total"
             status = :Solved
         else

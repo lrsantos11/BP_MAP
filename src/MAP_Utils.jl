@@ -44,9 +44,10 @@ function MAP(
     itmax_MAP::Int = 100,
     xSol::AbstractArray = [],
     verbose::Bool = false,
-    timeout=3600,
+    timeout = 3600,
 )
     start = time()
+
     solution_given = !isempty(xSol)
     iter = 0
     xMAP = x₀
@@ -63,14 +64,18 @@ function MAP(
         # Check for infeasibility
         dist_AB_Old = dist_AB
         dist_AB = norm(ProjA - xMAP, 2)
-        tol_dist = abs(dist_AB - dist_AB_Old) / dist_AB
-        infeasible = tol_dist < ε_MAP
+        infeasible = iter > 1 && isapprox(dist_AB, dist_AB_Old, rtol = ε_MAP, atol = 0.0)
         if infeasible
             status = :Infeasible
             break
         end
-        solution_given ? tolMAP = norm(xMAP - xSol, Inf) : tolMAP = norm(ProjA - xMAP, Inf)
-        solved = tolMAP < ε_MAP
+        if solution_given
+            solved =
+                isapprox(xMAP, xSol; rtol = ε_MAP, atol = ε_MAP, norm = x -> norm(x, Inf))
+        else
+            solved =
+                isapprox(xMAP, ProjA; rtol = ε_MAP, atol = ε_MAP, norm = x -> norm(x, Inf))
+        end
         solved && (status = :Solved)
         tired = (iter >= itmax_MAP || time() - start > timeout)
     end
