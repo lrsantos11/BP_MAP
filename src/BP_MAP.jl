@@ -172,11 +172,13 @@ function solveBP_MAP(
         end
         tolBP = BP_solution_given ? isclose(xMAP, BP_solution) : false
         if tolBP
-            verbose && println()
-            @info "Solved"
-            verbose && @info "it = $it"
-            verbose && @info "distance = $dnorm2"
-            verbose && @info "inner_it_total = $inner_it_total"
+            if verbose 
+                println(); 
+                @info "Solved"
+                @info "it = $it"
+                @info "distance = $dnorm2"
+                @info "inner_it_total = $inner_it_total"
+            end
             status = :Solved
         else
             verbose && println()
