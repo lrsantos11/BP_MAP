@@ -105,7 +105,7 @@ function lpt_bechmark()
         :BP_MAP => Float64[],
         :BP_HOC => Float64[],
         :LP => Float64[],
-        :LO_dist => Float64[],
+        :LP_dist => Float64[],
         :ISAL => Float64[],
         :BP_MAP_dist => Float64[],
         :BP_HOC_dist => Float64[],
