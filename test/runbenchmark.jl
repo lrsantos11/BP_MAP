@@ -158,7 +158,6 @@ function lpt_bechmark()
         @info "Elapsed CPU time for solving with LP Solver"
         t = @benchmark begin
             set_optimizer($model, $solver)
-            set_silent($model)
             solveBP_LPmodel!($model)
         end
         medtime = median(t.times)
@@ -173,7 +172,7 @@ function lpt_bechmark()
         dist = relerror(xISAL, sol)
         @info "Dist to solution = $dist"
         solved = dist < 1.0e-6
-        @info @sprintf("Mean = %.4f s", time_ISAL)
+        @info @sprintf("Median = %.4f s", time_ISAL)
         push!(results[:ISAL], solved ? time_ISAL : -time_ISAL)
         push!(results[:ISAL_dist], dist)
 
