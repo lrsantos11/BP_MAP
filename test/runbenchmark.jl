@@ -161,7 +161,8 @@ function lpt_bechmark()
             set_silent($model)
             solveBP_LPmodel!($model)
         end
-        push!(results[:LP], solved ? median(t.times) : -median(t.times))
+        medtime = median(t.times)
+        push!(results[:LP], solved ? medtime : -medtime)
         push!(results[:LP_dist], dist)
         @info @sprintf("Median = %.4f s", results[:LP][end] / 1.0e9)
 

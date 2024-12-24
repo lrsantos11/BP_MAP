@@ -1,5 +1,6 @@
 using DrWatson
 @quickactivate :BP_MAP
+using Statistics
 using LinearAlgebra
 using BenchmarkTools
 using MATLAB
@@ -69,7 +70,7 @@ function solveBP_ISAL1(
     """
 
     # If we need to compute time and the solution was too fast
-    elapsed_time = 0.0
+    times = Float64[] 
     if compute_time && matlab_time < 10
         rounds = 10 ÷ matlab_time
         for _ = 1:rounds
@@ -79,12 +80,12 @@ function solveBP_ISAL1(
             [$x, $fval, $err, $exfl, $it] = ISAL1($A, $b, 1, -1, $displ);
             $matlab_time = toc; 
             """
-            elapsed_time += matlab_time
+            push!(times, matlab_time)
         end
-        elapsed_time /= rounds
     else
-        elapsed_time = matlab_time
+        push!(times, matlab_time)
     end
+    elapsed_time = median(times)
     xISAL .= x
     it_total = it
     status = exfl

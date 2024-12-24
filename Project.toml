@@ -42,6 +42,7 @@ Reexport = "189a3867-3050-52da-a836-e630ba90ab69"
 SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
 SparseMatricesCSR = "a0a7dd2c-ebf4-11e9-1f05-cf50bc540ca1"
 StarPU_jll = "e3ad0b27-b140-5312-a56e-059adfc55eb4"
+Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
 ThreadedSparseArrays = "59d54670-b8ac-4d81-ab7a-bb56233e17ab"
 ThreadedSparseCSR = "39591389-4884-462a-89e7-9edfce40b6eb"
 
