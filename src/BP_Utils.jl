@@ -3,8 +3,11 @@ cpu_model = Sys.cpu_info()[1].model
 @info cpu_model
 if occursin("Intel", cpu_model) || occursin("AMD", cpu_model)
     global islinux = true
+    using MKL
     using MKLSparse
-    @info "Using MKL and MKLSparse"
+    # using SparseMatricesCSR
+    # using ThreadedSparseCSR
+    @info "Using MKL and ThreadedSparseCSR"
 else
     global islinux = false
     using AppleAccelerate
@@ -46,9 +49,6 @@ abstract type AbstractBPP end
 
 abstract type AbstractSparseBPP <: AbstractBPP end
 
-"Abstract sparse matrix where matrix-vector multiply is efficient with the transpose"
-abstract type AbstractSparseCSCBPP <: AbstractSparseBPP end
-
 "Abstract sparse matrix where direct matrix-vector multiply is efficient"
 abstract type AbstractSparseCSRBPP <: AbstractSparseBPP end
 
@@ -64,13 +64,15 @@ struct DenseBPP{T} <: AbstractBPP
 end
 
 "BPProblem with sparse matrices in CPU"
-struct SparseCSCBPP{T} <: AbstractSparseCSCBPP
+struct SparseCSRBPP{T} <: AbstractSparseCSRBPP
     A::SparseMatrixCSC{T}
     b::Vector{T}
     sol::Vector{T}
     optval::T
-    accelA::SparseMatrixCSC{T}
-    accelAt::SparseMatrixCSC{T}
+    accelA::Transpose{T, SparseMatrixCSC{T, Int64}}
+    accelAt::Transpose{T, SparseMatrixCSC{T, Int64}}
+    # accelA::SparseMatrixCSR{1, T, Int64}
+    # accelAt::SparseMatrixCSR{1, T, Int64}
     accelb::Vector{T}
 end
 
@@ -119,7 +121,12 @@ function BPProblem(
     if issparse(A)
         A, b = normrows(A, b)
         if acceltype == noaccel 
-            return SparseCSCBPP(A, b, sol, optval, A, convert(SparseMatrixCSC, A'), b)
+            # i, j, vals = findnz(A)
+            # ACSR = sparsecsr(i, j, vals)
+            # ACSRt = sparsecsr(j, i, vals)
+            # return SparseCSRBPP(A, b, sol, optval, ACSR, ACSRt, b)
+            At = SparseMatrixCSC(A') 
+            return SparseCSRBPP(A, b, sol, optval, transpose(At), transpose(A), b)
         elseif acceltype == CUDAaccel
             return CuSparseBPP(
                 A,
@@ -187,20 +194,8 @@ function BPProblem(A, b, optval::AbstractFloat; acceltype = acceltype)
 end
 
 "Builds a LinearOperator to represent A"
-function Afactory(p::AbstractSparseCSCBPP)
-    T = eltype(p.accelA)
-    m, n = size(p)
-    return LinearOperator(
-        T, m, n, false, false, 
-        (y, v) -> mul!(y, p.accelAt', v),
-        (y, v) -> mul!(y, p.accelA', v), 
-        nothing
-    )
-end
-
-"Builds a LinearOperator to represent A"
 function Afactory(p::AbstractSparseCSRBPP)
-    T = eltype(p.accelA)
+    T = eltype(p)
     m, n = size(p)
     return LinearOperator(
         T, m, n, false, false, 
@@ -211,20 +206,8 @@ function Afactory(p::AbstractSparseCSRBPP)
 end
 
 "Builds a LinearOperator to represent AA'"
-function AAtfactory(p::AbstractSparseCSCBPP)
-    T = eltype(p.accelA)
-    m, n = size(p)
-    ytemp = typeof(p.accelb)(undef, n)
-    function AAt!(y, v)
-        mul!(ytemp, p.accelA', v)
-        mul!(y, p.accelAt', ytemp)
-    end
-    return LinearOperator(T, m, m, true, true, AAt!, nothing, nothing)
-end
-
-"Builds a LinearOperator to represent AA'"
 function AAtfactory(p::AbstractSparseCSRBPP)
-    T = eltype(p.accelA)
+    T = eltype(p)
     m, n = size(p)
     ytemp = typeof(p.accelb)(undef, n)
     function AAt!(y, v)
@@ -281,7 +264,7 @@ function select(prob::DenseBPP, S)
 end
 
 "Get a view of the columns of A indexed by S that is suited to solve least square systems using lsHOC"
-function select(prob::SparseCSCBPP, S)
+function select(prob::SparseCSRBPP, S)
     # Convert A[:, S] and its tranpose to the type in prob
     Aₛ = prob.A[:, S]
     M = Aₛ

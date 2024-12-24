@@ -17,7 +17,9 @@ if occursin("Intel", cpu_model) || occursin("AMD", cpu_model)
     global islinux = true
     using MKL
     using MKLSparse
-    @info "Using MKL and MKLSparse"
+    # using SparseMatricesCSR
+    # using ThreadedSparseCSR
+    @info "Using MKL and ThreadedSparseCSR"
 else
     global islinux = false
     using AppleAccelerate
@@ -69,7 +71,7 @@ function solveBP_MAP(
 )
     start = time()
     # Define if values are close
-    isclose(x, y) = isapprox(x, y; rtol = ε, atol = ε, norm  = norminf)
+    isclose(x, y) = isapprox(x, y; rtol = ε, atol = ε, norm = norminf)
 
     _, n = size(prob.A)
     Ta = eltype(prob.A)
@@ -79,10 +81,10 @@ function solveBP_MAP(
     end
     BP_solution_given = !isempty(BP_solution)
     verbose && @printf("%6d: ", 0)
+    zMAP = x₀
     xMAP = ProjAffine(x₀)
     verbose && println()
     dnorm2 = norm(xMAP, 2)
-    radius = 0.0
     solved = false
     tired = false
     it = 0
@@ -91,21 +93,18 @@ function solveBP_MAP(
     tolBP = 1.0
     repsupport = 0
     support = Int[]
-    lowradius, upradius = norm(xMAP, 2), norm(xMAP, 1)
+    lowradius, upradius = dnorm2, norm(xMAP, 1)
+    λ = 0.1
+    radius = dnorm2
     while !(solved || tired)
         verbose && @printf("%6d: ", it + 1)
-        if trybinsearch
-            radius = 0.5*(lowradius + upradius)
-        else
-            radius += dnorm2
-        end
         BallL1 = IndBallL1(radius)
         global Proj_BallL1 = x -> ProjectIndicator(BallL1, x)
         zMAP, inner_it, inner_status = MAP(
-            xMAP,
+            0.5 * (ProjAffine(zMAP) + Proj_BallL1(xMAP)),
             ProjAffine,
             Proj_BallL1,
-            itmax_MAP = 100*itmax,
+            itmax_MAP = 100 * itmax,
             verbose = false,
             ε_MAP = ε_MAP,
             kwargs...,
@@ -113,11 +112,19 @@ function solveBP_MAP(
         xMAP = ProjAffine(zMAP)
         dnorm2 = norm(xMAP - zMAP, 2)
         if trybinsearch
-            if inner_status == :Solved 
+            if inner_status == :Solved
                 upradius = radius
+                radius = min(norm(xMAP, 1), (1 - λ) * lowradius + λ * upradius)
             elseif inner_status == :Infeasible
                 lowradius = radius
+                radius = min(
+                    (1 - λ) * lowradius + λ * upradius,
+                    norm((1 - λ) * zMAP + λ * xMAP, 1),
+                )
+                # radius = min(0.5*(lowradius + upradius), norm(0.5)
             end
+        else
+            radius += dnorm2
         end
 
         it += 1
@@ -165,7 +172,8 @@ function solveBP_MAP(
         end
         tolBP = BP_solution_given ? isclose(xMAP, BP_solution) : false
         if tolBP
-            verbose && println(); @info "Solved"
+            verbose && println()
+            @info "Solved"
             verbose && @info "it = $it"
             verbose && @info "distance = $dnorm2"
             verbose && @info "inner_it_total = $inner_it_total"
@@ -190,7 +198,7 @@ function affproxproj(prob::AbstractBPP, verbose = false)
 end
 
 "Factory for the projection function onto Ax = b using QRMumps"
-function affqrmumpsproj(prob::SparseCSCBPP, verbose = false)
+function affqrmumpsproj(prob::SparseCSRBPP, verbose = false)
     m, n = size(prob)
     if "OMP_NUM_THREADS" in keys(ENV)
         n_threads = parse(Int, ENV["OMP_NUM_THREADS"])
@@ -198,29 +206,30 @@ function affqrmumpsproj(prob::SparseCSCBPP, verbose = false)
         n_threads = Threads.nthreads()
     end
     qrm_init(n_threads)
-    spmat = qrm_spmat_init(prob.accelA)
+    @show n_threads
+    spmat = qrm_spmat_init(prob.A)
     spfct = qrm_spfct_init(spmat)
-    qrm_analyse!(spmat, spfct, transp='t')
+    qrm_analyse!(spmat, spfct, transp = 't')
     qrm_set(spfct, "qrm_keeph", 0)
-    qrm_factorize!(spmat, spfct, transp='t')
-    λ = similar(prob.accelb)
-    b = similar(prob.accelb)
-    z = zeros(eltype(prob.A), n) 
+    qrm_factorize!(spmat, spfct, transp = 't')
+    λ = similar(prob.b)
+    b = similar(prob.b)
+    z = zeros(eltype(prob.A), n)
     function proj(x)
         # Solve the minimal norm problem
-        mul!(b, prob.accelAt', x)
+        mul!(b, prob.accelA, x)
         b .-= prob.accelb
-        qrm_solve!(spfct, b, z, transp='t')
-        qrm_solve!(spfct, z, λ, transp='n')
+        qrm_solve!(spfct, b, z, transp = 't')
+        qrm_solve!(spfct, z, λ, transp = 'n')
         # Apply one step of iterative refiment
-        res = b - prob.accelAt'*(prob.accelA'*λ)
-        cr1 = qrm_solve(spfct, res, transp='t')
-        cr = qrm_solve(spfct, cr1, transp='n')
+        res = b - prob.accelA * (prob.accelAt * λ)
+        cr1 = qrm_solve(spfct, res, transp = 't')
+        cr = qrm_solve(spfct, cr1, transp = 'n')
         λ += cr
         if verbose
             print(".")
         end
-        return x - prob.accelA'*λ
+        return x - prob.accelAt * λ
     end
     return proj
 end
@@ -233,7 +242,7 @@ function affkrylovproj(prob::AbstractSparseBPP, verbose = false)
     pre_proj = solver.x
     function proj(x)
         b = prob.accelb - OpA * convert(typeof(prob.accelb), x)
-        crmr!(solver, OpA, b, itmax = 10*(m + n))
+        crmr!(solver, OpA, b, itmax = 10 * (m + n))
         if verbose
             if solver.stats.solved
                 print(".")
@@ -255,7 +264,7 @@ function affkktproj(prob::AbstractSparseBPP, verbose = false)
     # D = CuSparseMatrixCSR(spdiagm([1 / norm(prob.A[i, :]) for i in 1:m]))
     λ = solver.x
     function proj(x)
-        b = prob.accelAt' * convert(typeof(prob.accelb), x) - prob.accelb
+        b = prob.accelA * convert(typeof(prob.accelb), x) - prob.accelb
         cg!(solver, Op, b)
         if verbose
             if solver.stats.solved
@@ -264,7 +273,7 @@ function affkktproj(prob::AbstractSparseBPP, verbose = false)
                 print("F")
             end
         end
-        return x - Vector(prob.accelA' * λ)
+        return x - Vector(prob.accelAt * λ)
     end
     return proj
 end
