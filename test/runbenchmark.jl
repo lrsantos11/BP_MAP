@@ -80,11 +80,16 @@ function solve_with_BPMAP(prob, usehoc = false)
 end
 
 function save_results(results)
+    column_order = [
+        :Problem, :M, :N, :LP, :LP_dist, :ISAL, :ISAL_dist,
+        :BP_MAP, :BP_MAP_dist, :BP_HOC, :BP_HOC_dist
+    ]
+    
     # Convert to DataFrame and save to a file
     LPT_data = DataFrame(results)
+    LPT_data = LPT_data[!, column_order]
     # Convert time to seconds
-    # LPT_data[!, [:LP, :BP_MAP, :BP_HOC]] ./= 1.0e9
-    LPT_data[!, [:BP_MAP, :BP_HOC]] ./= 1.0e9
+    LPT_data[!, [:LP, :BP_MAP, :BP_HOC]] ./= 1.0e9
     println(LPT_data)
     CSV.write("LPT_benchmark_auto_tmp.csv", LPT_data)
 end
@@ -99,12 +104,13 @@ function lpt_bechmark()
         :N => Int[],
         :BP_MAP => Float64[],
         :BP_HOC => Float64[],
-        # :LP => Float64[],
-        # :ISAL => Float64[],
+        :LP => Float64[],
+        :LO_dist => Float664[],
+        :ISAL => Float64[],
         :BP_MAP_dist => Float64[],
         :BP_HOC_dist => Float64[],
-    #     :LP_dist => Float64[],
-    #     :ISAL_dist => Float64[],
+        :LP_dist => Float64[],
+        :ISAL_dist => Float64[],
     )
 
     testnum = 0
@@ -135,40 +141,40 @@ function lpt_bechmark()
         push!(results[:BP_HOC], duration)
         push!(results[:BP_HOC_dist], dist)
 
-        # # Read problem again as GPU is not supported by LP or ISAL
-        # prob = readl1test(prob_path; mattype = mattype, acceltype = noaccel)
+        # Read problem again as GPU is not supported by LP or ISAL
+        prob = readl1test(prob_path; mattype = mattype, acceltype = noaccel)
 
-        # # LP solver, use Gurobi if avaliable.
-        # @info "LP " * "-"^60
-        # if solvertype == :gurobi
-        #     solver = () -> Gurobi.Optimizer(gurobi_env)
-        # else
-        #     solver = HiGHS.Optimizer
-        # end
-        # model = buildBP_LPModel(prob, solver = solver)
-        # lp_sol = solveBP_LPmodel!(model)
-        # solved = is_solved_and_feasible(model)
-        # dist = relerror(lp_sol, sol)
-        # @info "Elapsed CPU time for solving with LP Solver"
-        # t = @benchmark begin
-        #     set_optimizer($model, $solver)
-        #     set_silent($model)
-        #     solveBP_LPmodel!($model)
-        # end
-        # push!(results[:LP], solved ? median(t.times) : -median(t.times))
-        # push!(results[:LP_dist], dist)
-        # @info @sprintf("Median = %.4f s", results[:LP][end] / 1.0e9)
+        # LP solver, use Gurobi if avaliable.
+        @info "LP " * "-"^60
+        if solvertype == :gurobi
+            solver = () -> Gurobi.Optimizer(gurobi_env)
+        else
+            solver = HiGHS.Optimizer
+        end
+        model = buildBP_LPModel(prob, solver = solver)
+        lp_sol = solveBP_LPmodel!(model)
+        solved = is_solved_and_feasible(model)
+        dist = relerror(lp_sol, sol)
+        @info "Elapsed CPU time for solving with LP Solver"
+        t = @benchmark begin
+            set_optimizer($model, $solver)
+            set_silent($model)
+            solveBP_LPmodel!($model)
+        end
+        push!(results[:LP], solved ? median(t.times) : -median(t.times))
+        push!(results[:LP_dist], dist)
+        @info @sprintf("Median = %.4f s", results[:LP][end] / 1.0e9)
 
-        # # ISAL1
-        # @info "ISAL1 " * "-"^60
-        # @info "Elapsed CPU time for solving with ISAL1 Solver"
-        # xISAL, time_ISAL, it_ISAL, status_ISAL = solveBP_ISAL1(prob)
-        # dist = relerror(xISAL, sol)
-        # @info "Dist to solution = $dist"
-        # solved = dist < 1.0e-6
-        # @info @sprintf("Mean = %.4f s", time_ISAL)
-        # push!(results[:ISAL], solved ? time_ISAL : -time_ISAL)
-        # push!(results[:ISAL_dist], dist)
+        # ISAL1
+        @info "ISAL1 " * "-"^60
+        @info "Elapsed CPU time for solving with ISAL1 Solver"
+        xISAL, time_ISAL, it_ISAL, status_ISAL = solveBP_ISAL1(prob)
+        dist = relerror(xISAL, sol)
+        @info "Dist to solution = $dist"
+        solved = dist < 1.0e-6
+        @info @sprintf("Mean = %.4f s", time_ISAL)
+        push!(results[:ISAL], solved ? time_ISAL : -time_ISAL)
+        push!(results[:ISAL_dist], dist)
 
         println("="^72)
         if testnum % savestep == 0
