@@ -45,7 +45,7 @@ function solve_with_BPMAP(prob, usehoc = false)
     itmax = 2000
     tol, success_prec, tol_HOC = 1.0e-6, 1.0e-4, 1.0e-10
 
-    solver_name = "BP_MAP, DOC = $usehoc "
+    solver_name = "BP_MAP, HOC = $usehoc "
     @info solver_name * "-"^(70 - length(solver_name))
     duration = @elapsed xMAP, zMAP, it, inner_it, status = solveBP_MAP(
         prob,
@@ -60,7 +60,7 @@ function solve_with_BPMAP(prob, usehoc = false)
 
     if !usehoc
         @info "Applying HOC"
-        xSol_HOC, status_hoc = heuristic_optimality_check(zMAP, prob, δ = tol_HOC)
+        duration += @elapsed xSol_HOC, status_hoc = heuristic_optimality_check(zMAP, prob, δ = tol_HOC)
         dist_HOC = dist2sol(xSol_HOC, prob)
         if status_hoc == :success
             xMAP, dist, status = xSol_HOC, dist_HOC, :Solved
@@ -79,7 +79,9 @@ function solve_with_BPMAP(prob, usehoc = false)
                 δ_HOC = $tol_HOC,
                 usehoc = $usehoc,
             )
-            heuristic_optimality_check($xMAP, $prob, δ = $tol_HOC)
+            if !usehoc
+                heuristic_optimality_check($xMAP, $prob, δ = $tol_HOC)
+            end
         end seconds = 10
         duration = median(t.times)
     else
@@ -101,14 +103,18 @@ function solve_with_LP(prob)
         lpsolver = HiGHS.Optimizer
     end
     model = buildBP_LPModel(prob, solver = lpsolver)
-    lp_sol = solveBP_LPmodel!(model)
+    duration = @elapsed lp_sol = solveBP_LPmodel!(model)
     solved = is_solved_and_feasible(model)
     dist = dist2sol(lp_sol, prob)
     @info "Elapsed CPU time for solving with LP Solver"
-    t = @benchmark begin
-        set_optimizer($model, $lpsolver)
-        solveBP_LPmodel!($model)
-    end
+    if duration < 60
+        t = @benchmark begin
+            set_optimizer($model, $lpsolver)
+            solveBP_LPmodel!($model)
+        end
+    else
+        t = [duration]
+    end 
     duration = solved ? median(t.times) : -median(t.times)
 
     @info @sprintf("Elapsed CPU time for LP %.4f s", duration / 1.0e9)

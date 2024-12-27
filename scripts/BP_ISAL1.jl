@@ -65,7 +65,7 @@ function solveBP_ISAL1(
     mat"""
     tic
     % Initialization
-    [$x, $fval, $err, $exfl, $it] = ISAL1($A, $b, 1, -1, $displ);
+    [$x, $fval, $err, $exfl, $it] = ISAL1($A, $b, 1, -1, $displ, time=3600);
     $matlab_time = toc; 
     """
 
@@ -77,7 +77,7 @@ function solveBP_ISAL1(
             mat"""
             tic
             % Initialization
-            [$x, $fval, $err, $exfl, $it] = ISAL1($A, $b, 1, -1, $displ);
+            [$x, $fval, $err, $exfl, $it] = ISAL1($A, $b, 1, -1, $displ, time=3600);
             $matlab_time = toc; 
             """
             push!(times, matlab_time)
