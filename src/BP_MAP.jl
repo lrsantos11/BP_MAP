@@ -19,7 +19,7 @@ if occursin("Intel", cpu_model) || occursin("AMD", cpu_model)
     using MKLSparse
     # using SparseMatricesCSR
     # using ThreadedSparseCSR
-    @info "Using MKL and ThreadedSparseCSR"
+    @info "Using MKL and MKLSparse"
 else
     global islinux = false
     using AppleAccelerate

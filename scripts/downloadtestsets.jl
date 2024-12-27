@@ -44,28 +44,48 @@ function dowload_l1testset(testurl, destdir)
     return true
 end
 
+"Eliminate reduntant lines from A and RHS"
+function simplify(A, b)
+    @info "Trying to delete redundant lines from A"
+    if 8 * prod(size(A)) > Int(Sys.total_memory()) ÷ 4
+        @error "Not enough memory"
+        return A, b
+    end
+
+    m, _ = size(A)
+    At = convert(SparseMatrixCSC, A')
+    fact = qr(At)
+    valid =
+        [abs(fact.R[i, i] / norm(At[:, fact.pcol[i]])) > sqrt(eps(eltype(A))) for i = 1:m]
+    @info "Deleted $(m - sum(valid)) lines"
+    valid = fact.pcol[valid]
+    At, b = At[:, valid], b[valid, :]
+    @info "Done"
+    return convert(SparseMatrixCSC, At'), b
+end
+
 "Try to solve Ax = b to see if the matrix is too badly conditioned"
 function check_residual(A, b, threshold = 1.0e-10)
     @info "Solving a linear system Ax = b to check residual"
-    # If the dense verision of the matrix uses less than 4GB try a full
-    # factorization.
-    if 8 * prod(size(A)) < 4 / 8 * 2^30
+    # If the dense version of the matrix s less than 1 / 4 of the memory
+    # available a full factorization.
+    if 8 * prod(size(A)) < Int(Sys.total_memory()) ÷ 4
+        @info "Using factorization"
         xsol = A \ b
         resnorm = norm(A * xsol - b) / max(1.0, norm(b))
         solved = resnorm < threshold
-        if !solved
-            @error "Too large residual = $resnorm"
-        end
     else
+        @info "Using CGNE"
         xsol, stats = cgne(A, b)
         solved = stats.solved
-        if !solved
-            @error "System can not be solved using a Krylov method."
-        end
+    end
+    if solved
+        @info "Done"
+    else
+        @error "Could not solve system to desired precision"
     end
     return solved
 end
-
 
 "Convert ther Lasso problem in filename to BP format"
 function Lasso2BP(filename)
@@ -97,6 +117,7 @@ function Lasso2BP(filename)
             b = hcat(b, A * lf.coefs[:, best])
             @info "NNZ for target $t is $(nnz(lf.coefs[:, best]) / m)"
         end
+        
         A, b = simplify(A, b)
         good_condition = check_residual(A, Vector(b[:, 2]))
         if good_condition
@@ -120,21 +141,6 @@ function Lasso2BP(filename)
             throw(e)
         end
     end
-end
-
-"Eliminate reduntant lines from A and RHS"
-function simplify(A, b)
-    @info "Eliminating redundant lines from A"
-    m, _ = size(A)
-    At = convert(SparseMatrixCSC, A')
-    fact = qr(At)
-    valid =
-        [abs(fact.R[i, i] / norm(At[:, fact.pcol[i]])) > sqrt(eps(eltype(A))) for i = 1:m]
-    @info "Deleting $(m - sum(valid)) lines"
-    valid = fact.pcol[valid]
-    At, b = At[:, valid], b[valid, :]
-    @info "Done"
-    return convert(SparseMatrixCSC, At'), b
 end
 
 "Dowload and convert Lasso test set from Lopes, Santos and Silva"
