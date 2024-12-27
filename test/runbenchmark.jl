@@ -177,7 +177,7 @@ function run_benchmark(testset, resfile, rhs=1)
         # Read test
         testnum += 1
         prob_name = basename(instance)
-        push!(results[:Problem], prob_name)
+        push!(results[:Problem], prob_name * "- $rhs")
         prob = readl1test(instance; rhs=rhs, mattype = mattype, acceltype = acceleration)
         m, n = size(prob)
         push!(results[:M], m)
