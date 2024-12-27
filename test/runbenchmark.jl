@@ -112,10 +112,11 @@ function solve_with_LP(prob)
             set_optimizer($model, $lpsolver)
             solveBP_LPmodel!($model)
         end
+        duration = median(t.times)
     else
-        t = [1.0e+9*duration]
+        duration *= 1.0e+9
     end 
-    duration = solved ? median(t.times) : -median(t.times)
+    duration = solved ? duration : -duration
 
     @info @sprintf("Elapsed CPU time for LP %.4f s", duration / 1.0e9)
     return duration, dist
