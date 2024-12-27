@@ -79,7 +79,7 @@ function solve_with_BPMAP(prob, usehoc = false)
                 δ_HOC = $tol_HOC,
                 usehoc = $usehoc,
             )
-            if !usehoc
+            if !$usehoc
                 heuristic_optimality_check($xMAP, $prob, δ = $tol_HOC)
             end
         end seconds = 10
@@ -113,7 +113,7 @@ function solve_with_LP(prob)
             solveBP_LPmodel!($model)
         end
     else
-        t = [duration]
+        t = [1.0e+9*duration]
     end 
     duration = solved ? median(t.times) : -median(t.times)
 
