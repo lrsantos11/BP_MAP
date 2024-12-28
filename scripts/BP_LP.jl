@@ -31,8 +31,10 @@ end
 "Solve an LP model describing BP"
 function solveBP_LPmodel!(model)
     optimize!(model)
-    @assert termination_status(model) == OPTIMAL
-    return value.(model[:xplus]) - value.(model[:xminus])
+    if termination_status(model) == OPTIMAL
+        return value.(model[:xplus]) - value.(model[:xminus])
+    else
+        return zeros(num_variables(model) ÷ 2)
 end
 
 

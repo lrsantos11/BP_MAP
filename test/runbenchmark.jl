@@ -103,6 +103,7 @@ function solve_with_LP(prob)
         lpsolver = HiGHS.Optimizer
     end
     model = buildBP_LPModel(prob, solver = lpsolver)
+    set_time_limit_sec(model, 10) 
     duration = @elapsed lp_sol = solveBP_LPmodel!(model)
     solved = is_solved_and_feasible(model)
     dist = dist2sol(lp_sol, prob)
