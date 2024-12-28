@@ -35,6 +35,7 @@ function solveBP_LPmodel!(model)
         return value.(model[:xplus]) - value.(model[:xminus])
     else
         return zeros(num_variables(model) ÷ 2)
+    end
 end
 
 
