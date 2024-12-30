@@ -66,7 +66,7 @@ function solveBP_MAP(
     x₀::AbstractVector = [],
     BP_solution::AbstractVector = [],
     timeout = 3600,
-    trybinsearch = true,
+    usebinsearch = true,
     kwargs...,
 )
     start = time()
@@ -111,7 +111,7 @@ function solveBP_MAP(
         )
         xMAP = ProjAffine(zMAP)
         dnorm2 = norm(xMAP - zMAP, 2)
-        if trybinsearch
+        if usebinsearch
             if inner_status == :Solved
                 upradius = radius
                 radius = min(norm(xMAP, 1), (1 - λ) * lowradius + λ * upradius)
@@ -149,7 +149,7 @@ function solveBP_MAP(
             support = new_support
         end
 
-        if trybinsearch
+        if usebinsearch
             solved = isclose(upradius, lowradius)
         else
             solved = inner_status == :solved || isclose(xMAP, zMAP)

@@ -2,7 +2,6 @@ using DrWatson
 @quickactivate :BP_MAP
 
 using Test
-acceleration::AccelerationTarget = noaccel
 mattype::MatType = automat
 
 using LinearAlgebra
@@ -41,12 +40,13 @@ function dist2sol(x, prob)
     return dist
 end
 
-function solve_with_BPMAP(prob, usehoc = false)
+function solve_with_BPMAP(prob, usehoc = false, binsearch = false)
     itmax = 2000
     tol, success_prec, tol_HOC = 1.0e-6, 1.0e-4, 1.0e-10
 
-    solver_name = "BP_MAP, HOC = $usehoc "
+    solver_name = bpname(usehoc, binsearch, noaccel) * " " 
     @info solver_name * "-"^(70 - length(solver_name))
+    @info "Matrix type = $(typeof(prob.accelA))"
     duration = @elapsed xMAP, zMAP, it, inner_it, status = solveBP_MAP(
         prob,
         itmax = itmax,
@@ -54,13 +54,15 @@ function solve_with_BPMAP(prob, usehoc = false)
         ε_MAP = tol,
         δ_HOC = tol_HOC,
         usehoc = usehoc,
+        usebinsearch = binsearch,
     )
     @info "BP-MAP status is $status with $(it) iterations and $(inner_it) inner iterations"
     dist = dist2sol(xMAP, prob)
 
     if !usehoc
         @info "Applying HOC"
-        duration += @elapsed xSol_HOC, status_hoc = heuristic_optimality_check(zMAP, prob, δ = tol_HOC)
+        duration += @elapsed xSol_HOC, status_hoc =
+            heuristic_optimality_check(zMAP, prob, δ = tol_HOC)
         dist_HOC = dist2sol(xSol_HOC, prob)
         if status_hoc == :success
             xMAP, dist, status = xSol_HOC, dist_HOC, :Solved
@@ -78,18 +80,17 @@ function solve_with_BPMAP(prob, usehoc = false)
                 ε_MAP = $tol,
                 δ_HOC = $tol_HOC,
                 usehoc = $usehoc,
+                usebinsearch = $binsearch,
             )
             if !$usehoc
                 heuristic_optimality_check($xMAP, $prob, δ = $tol_HOC)
             end
         end seconds = 10
-        duration = median(t.times)
-    else
-        duration *= 1.0e9
+        duration = median(t.times) / 1.0e9
     end
     duration = solved ? duration : -duration
 
-    @info @sprintf("Elapsed CPU time for BP_MAP %.4f s", duration / 1.0e9)
+    @info @sprintf("Elapsed CPU time for BP_MAP %.4f s", duration)
     return duration, dist
 end
 
@@ -103,7 +104,7 @@ function solve_with_LP(prob)
         lpsolver = HiGHS.Optimizer
     end
     model = buildBP_LPModel(prob, solver = lpsolver)
-    set_time_limit_sec(model, 3600) 
+    set_time_limit_sec(model, 3600)
     duration = @elapsed lp_sol = solveBP_LPmodel!(model)
     solved = is_solved_and_feasible(model)
     dist = dist2sol(lp_sol, prob)
@@ -111,15 +112,14 @@ function solve_with_LP(prob)
     if duration < 60
         t = @benchmark begin
             set_optimizer($model, $lpsolver)
+            set_silent($model)
             solveBP_LPmodel!($model)
         end
-        duration = median(t.times)
-    else
-        duration *= 1.0e+9
-    end 
+        duration = median(t.times) / 1.0e+9
+    end
     duration = solved ? duration : -duration
 
-    @info @sprintf("Elapsed CPU time for LP %.4f s", duration / 1.0e9)
+    @info @sprintf("Elapsed CPU time for LP %.4f s", duration)
     return duration, dist
 end
 
@@ -137,85 +137,85 @@ function solve_with_ISAL(prob)
 end
 
 function save_results(results, resfile)
-    column_order = [
-        :Problem,
-        :M,
-        :N,
-        :LP,
-        :LP_dist,
-        :ISAL,
-        :ISAL_dist,
-        :BP_MAP,
-        :BP_MAP_dist,
-        :BP_HOC,
-        :BP_HOC_dist,
-    ]
-
+    columns = [k for k in filter(x -> x ∉ ["Problem", "M", "N"], keys(results))]
+    sort!(columns)
+    columns = vcat(["Problem", "M", "N"], columns)
+    
     # Convert to DataFrame and save to a file
     LPT_data = DataFrame(results)
-    LPT_data = LPT_data[!, column_order]
-    # Convert time to seconds
-    LPT_data[!, [:LP, :BP_MAP, :BP_HOC]] ./= 1.0e9
+    LPT_data = LPT_data[!, columns]
     println(LPT_data)
     CSV.write(resfile, LPT_data)
 end
 
-function run_benchmark(testset, resfile, rhs=1)
+function bpname(usehoc, binsearch, acceleration)
+    name = usehoc ? "BP_HOC" : "BP_MAP"
+    if binsearch 
+        name *= "+Bin"
+    end
+    if acceleration == CUDAaccel
+        name *= "+CUDA"
+    end
+    return name
+end
+
+function run_benchmark(testset, resfile, rhs = 1, acceleration = [noaccel])
+    # Define different variations of BP_MAP
+    usehoc = [false, true]
+    binsearch = [false, true]
+
     results = Dict(
-        :Problem => String[],
-        :M => Int[],
-        :N => Int[],
-        :BP_MAP => Float64[],
-        :BP_HOC => Float64[],
-        :LP => Float64[],
-        :LP_dist => Float64[],
-        :ISAL => Float64[],
-        :BP_MAP_dist => Float64[],
-        :BP_HOC_dist => Float64[],
-        :LP_dist => Float64[],
-        :ISAL_dist => Float64[],
+        "Problem" => String[],
+        "M" => Int[],
+        "N" => Int[],
+        "LP" => Float64[],
+        "LP dist" => Float64[],
+        "ISAL" => Float64[],
+        "ISAL dist" => Float64[],
     )
+    for h in usehoc, b in binsearch, a in acceleration
+        results[bpname(h, b, a)] = Float64[]
+        results[bpname(h, b, a) * " dist"] = Float64[]
+    end
 
     testnum = 0
     ntests = length(testset)
     savestep = max(5, ntests ÷ 20)
     for instance in testset
         println("="^78)
-        
+
         # Read test
         testnum += 1
         prob_name = basename(instance)
-        push!(results[:Problem], prob_name * "- $rhs")
-        prob = readl1test(instance; rhs=rhs, mattype = mattype, acceltype = acceleration)
+        push!(results["Problem"], prob_name * " - $rhs")
+        prob = readl1test(instance; rhs = rhs, mattype = mattype)
         m, n = size(prob)
-        push!(results[:M], m)
-        push!(results[:N], n)
+        push!(results["M"], m)
+        push!(results["N"], n)
         @info "Problem $(prob_name) - size: $(size(prob))"
         @info @sprintf("%d / %d (%.2g %%)", testnum, ntests, 100.0 * (testnum / ntests))
-        @info "Acceleration Matrix type: $(typeof(prob.accelA))"
 
-        # BP_MAP + HOC
-        duration, dist = solve_with_BPMAP(prob, false)
-        push!(results[:BP_MAP], duration)
-        push!(results[:BP_MAP_dist], dist)
+        # BP_MAP
+        for h in usehoc, b in binsearch, a in acceleration
+            prob = readl1test(instance; rhs = rhs, mattype = mattype, acceltype = a)
 
-        # BP_MAP with HOC
-        duration, dist = solve_with_BPMAP(prob, true)
-        push!(results[:BP_HOC], duration)
-        push!(results[:BP_HOC_dist], dist)
+            duration, dist = solve_with_BPMAP(prob, h, b)
+            push!(results[bpname(h, b, a)], duration)
+            push!(results[bpname(h, b, a) * " dist"], dist)
+        end
 
         # Read problem again as GPU is not supported by LP or ISAL
-        prob = readl1test(instance; rhs=rhs, mattype = mattype, acceltype = noaccel)
+        prob = readl1test(instance; rhs = rhs, mattype = mattype, acceltype = noaccel)
 
         # Linear programming
         duration, dist = solve_with_LP(prob)
-        push!(results[:LP], duration)
-        push!(results[:LP_dist], dist)
+        push!(results["LP"], duration)
+        push!(results["LP dist"], dist)
 
         # ISAL
         duration, dist = solve_with_ISAL(prob)
-        push!(results[:ISAL], duration)
-        push!(results[:ISAL_dist], dist)
+        push!(results["ISAL"], duration)
+        push!(results["ISAL dist"], dist)
 
         if testnum % savestep == 0
             save_results(results, resfile)
@@ -228,13 +228,15 @@ function run_benchmark(testset, resfile, rhs=1)
 end
 
 function run_benchmarks()
-    # @info "Testset from Lorentz, Pfetsch, and Tillmann"
-    # LPT_testset = glob("*.mat", datadir("exp_raw", "L1_Testset_mat"))
-    # run_benchmark(LPT_testset[91:95], "LPT_benchmark.csv")
+    @info "Testset from Lorentz, Pfetsch, and Tillmann"
+    LPT_testset = glob("*.mat", datadir("exp_raw", "L1_Testset_mat"))
+    run_benchmark(LPT_testset[91:92], "LPT_benchmark.csv", 1, [noaccel])
 
     @info "Testset based on Lopes, Santos, and Silva"
     LSS_testset = glob("*.mat", datadir("exp_raw", "lassobp_mat"))
-    run_benchmark(LSS_testset, "LSS_benchmark.csv")
+    for rhs = 1:4
+        run_benchmark(LSS_testset, "LSS_benchmark_$rhs.csv", rhs, [noaccel])
+    end
 end
 
 
