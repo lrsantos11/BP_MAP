@@ -14,13 +14,7 @@ using CSV
 
 include(scriptsdir("BP_LP.jl"))
 using Gurobi
-
-# Define the LP solver to use :gurobi or :HiGHS
-solvertype = :gurobi
-# Set a global gurobi enviroment to supress multiple messages
-if solvertype == :gurobi
-    global gurobi_env = Gurobi.Env()
-end
+const gurobi_env = Gurobi.Env()
 
 # Include the BP_ISAL1.jl scripts
 include(scriptsdir("BP_ISAL1.jl"))
@@ -44,7 +38,7 @@ function solve_with_BPMAP(prob, usehoc = false, binsearch = false)
     itmax = 2000
     tol, success_prec, tol_HOC = 1.0e-6, 1.0e-4, 1.0e-10
 
-    solver_name = bpname(usehoc, binsearch, noaccel) * " " 
+    solver_name = bpname(usehoc, binsearch, noaccel) * " "
     @info solver_name * "-"^(70 - length(solver_name))
     @info "Matrix type = $(typeof(prob.accelA))"
     duration = @elapsed xMAP, zMAP, it, inner_it, status = solveBP_MAP(
@@ -94,9 +88,9 @@ function solve_with_BPMAP(prob, usehoc = false, binsearch = false)
     return duration, dist
 end
 
-function solve_with_LP(prob)
+function solve_with_LP(prob, solvertype = :highs)
     # LP solver, use Gurobi if avaliable.
-    solver_name = "LP "
+    solver_name = "LP ($solvertype) "
     @info solver_name * "-"^(70 - length(solver_name))
     if solvertype == :gurobi
         lpsolver = () -> Gurobi.Optimizer(gurobi_env)
@@ -108,11 +102,10 @@ function solve_with_LP(prob)
     duration = @elapsed lp_sol = solveBP_LPmodel!(model)
     solved = is_solved_and_feasible(model)
     dist = dist2sol(lp_sol, prob)
-    @info "Elapsed CPU time for solving with LP Solver"
+    @info "Elapsed CPU time for solving with LP ($solvertype) Solver"
     if duration < 60
         t = @benchmark begin
             set_optimizer($model, $lpsolver)
-            set_silent($model)
             solveBP_LPmodel!($model)
         end
         duration = median(t.times) / 1.0e+9
@@ -140,7 +133,7 @@ function save_results(results, resfile)
     columns = [k for k in filter(x -> x ∉ ["Problem", "M", "N"], keys(results))]
     sort!(columns)
     columns = vcat(["Problem", "M", "N"], columns)
-    
+
     # Convert to DataFrame and save to a file
     LPT_data = DataFrame(results)
     LPT_data = LPT_data[!, columns]
@@ -150,7 +143,7 @@ end
 
 function bpname(usehoc, binsearch, acceleration)
     name = usehoc ? "BP_HOC" : "BP_MAP"
-    if binsearch 
+    if binsearch
         name *= "+Bin"
     end
     if acceleration == CUDAaccel
@@ -159,23 +152,28 @@ function bpname(usehoc, binsearch, acceleration)
     return name
 end
 
-function run_benchmark(testset, resfile, rhs = 1, acceleration = [noaccel])
-    # Define different variations of BP_MAP
-    usehoc = [false, true]
-    binsearch = [false, true]
-
+function run_benchmark(
+    testset,
+    resfile,
+    rhs = 1,
+    usehoc = [true],
+    binsearch = [true],
+    acceleration = [noaccel],
+)
     results = Dict(
         "Problem" => String[],
         "M" => Int[],
         "N" => Int[],
-        "LP" => Float64[],
-        "LP dist" => Float64[],
+        "Gurobi" => Float64[],
+        "Gurobi dist" => Float64[],
+        "HiGHS" => Float64[],
+        "HiGHS dist" => Float64[],
         "ISAL" => Float64[],
         "ISAL dist" => Float64[],
     )
     for h in usehoc, b in binsearch, a in acceleration
         results[bpname(h, b, a)] = Float64[]
-        results[bpname(h, b, a) * " dist"] = Float64[]
+        results[bpname(h, b, a)*" dist"] = Float64[]
     end
 
     testnum = 0
@@ -201,16 +199,19 @@ function run_benchmark(testset, resfile, rhs = 1, acceleration = [noaccel])
 
             duration, dist = solve_with_BPMAP(prob, h, b)
             push!(results[bpname(h, b, a)], duration)
-            push!(results[bpname(h, b, a) * " dist"], dist)
+            push!(results[bpname(h, b, a)*" dist"], dist)
         end
 
         # Read problem again as GPU is not supported by LP or ISAL
         prob = readl1test(instance; rhs = rhs, mattype = mattype, acceltype = noaccel)
 
         # Linear programming
-        duration, dist = solve_with_LP(prob)
-        push!(results["LP"], duration)
-        push!(results["LP dist"], dist)
+        duration, dist = solve_with_LP(prob, :gurobi)
+        push!(results["Gurobi"], duration)
+        push!(results["Gurobi dist"], dist)
+        duration, dist = solve_with_LP(prob, :highs)
+        push!(results["HiGHS"], duration)
+        push!(results["HiGHS dist"], dist)
 
         # ISAL
         duration, dist = solve_with_ISAL(prob)
@@ -230,12 +231,12 @@ end
 function run_benchmarks()
     @info "Testset from Lorentz, Pfetsch, and Tillmann"
     LPT_testset = glob("*.mat", datadir("exp_raw", "L1_Testset_mat"))
-    run_benchmark(LPT_testset[91:92], "LPT_benchmark.csv", 1, [noaccel])
+    run_benchmark(LPT_testset, "LPT_benchmark.csv", 1, [false, true], [false, true], [noaccel])
 
     @info "Testset based on Lopes, Santos, and Silva"
     LSS_testset = glob("*.mat", datadir("exp_raw", "lassobp_mat"))
     for rhs = 1:4
-        run_benchmark(LSS_testset, "LSS_benchmark_$rhs.csv", rhs, [noaccel])
+        run_benchmark(LSS_testset, "LSS_benchmark_CUDA_$rhs.csv", rhs, [true], [true], [CUDAaccel])
     end
 end
 
