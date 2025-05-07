@@ -240,13 +240,13 @@ end
 function affkrylovproj(prob::AbstractSparseBPP, verbose = false)
     OpA = Afactory(prob)
     m, n = size(prob)
-    solver = CrmrSolver(m, n, typeof(prob.accelb))
-    pre_proj = solver.x
+    workspc = CrmrWorkspace(m, n, typeof(prob.accelb))
+    pre_proj = workspc.x
     function proj(x)
         b = prob.accelb - OpA * convert(typeof(prob.accelb), x)
-        crmr!(solver, OpA, b, itmax = 10 * (m + n))
+        crmr!(workspc, OpA, b, itmax = 10 * (m + n))
         if verbose
-            if solver.stats.solved
+            if workspc.stats.solved
                 print(".")
             else
                 print("F")
@@ -262,14 +262,14 @@ function affkktproj(prob::AbstractSparseBPP, verbose = false)
     # Create the linear operator for the system of equations
     m, _ = size(prob)
     Op = AAtfactory(prob)
-    solver = CgSolver(m, m, typeof(prob.accelb))
+    workspc = CgWorkspace(m, m, typeof(prob.accelb))
     # D = CuSparseMatrixCSR(spdiagm([1 / norm(prob.A[i, :]) for i in 1:m]))
-    λ = solver.x
+    λ = workspc.x
     function proj(x)
         b = prob.accelA * convert(typeof(prob.accelb), x) - prob.accelb
-        cg!(solver, Op, b)
+        cg!(workspc, Op, b)
         if verbose
-            if solver.stats.solved
+            if workspc.stats.solved
                 print(".")
             else
                 print("F")

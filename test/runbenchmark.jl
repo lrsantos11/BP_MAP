@@ -13,11 +13,11 @@ using DataFrames
 using CSV
 
 include(scriptsdir("BP_LP.jl"))
-using Gurobi
-const gurobi_env = Gurobi.Env()
+# using Gurobi
+# const gurobi_env = Gurobi.Env()
 
 # Include the BP_ISAL1.jl scripts
-include(scriptsdir("BP_ISAL1.jl"))
+# include(scriptsdir("BP_ISAL1.jl"))
 
 "Relative error assuming that b is not 0"
 function relerror(a, b)
@@ -116,18 +116,18 @@ function solve_with_LP(prob, solvertype = :highs)
     return duration, dist
 end
 
-function solve_with_ISAL(prob)
-    solver_name = "ISAL "
-    @info solver_name * "-"^(70 - length(solver_name))
-    @info "Elapsed CPU time for solving with ISAL1 Solver"
-    xISAL, duration, it_ISAL, status_ISAL = solveBP_ISAL1(prob)
-    dist = dist2sol(xISAL, prob)
-    solved = status_ISAL ∉ [0, 2, -2] && dist < 1.0e-6
-    duration = solved ? duration : -duration
+# function solve_with_ISAL(prob)
+#     solver_name = "ISAL "
+#     @info solver_name * "-"^(70 - length(solver_name))
+#     @info "Elapsed CPU time for solving with ISAL1 Solver"
+#     xISAL, duration, it_ISAL, status_ISAL = solveBP_ISAL1(prob)
+#     dist = dist2sol(xISAL, prob)
+#     solved = status_ISAL ∉ [0, 2, -2] && dist < 1.0e-6
+#     duration = solved ? duration : -duration
 
-    @info @sprintf("Median = %.4f s", duration)
-    return duration, dist
-end
+#     @info @sprintf("Median = %.4f s", duration)
+#     return duration, dist
+# end
 
 function save_results(results, resfile)
     columns = [k for k in filter(x -> x ∉ ["Problem", "M", "N"], keys(results))]
@@ -164,12 +164,12 @@ function run_benchmark(
         "Problem" => String[],
         "M" => Int[],
         "N" => Int[],
-        "Gurobi" => Float64[],
-        "Gurobi dist" => Float64[],
+        # "Gurobi" => Float64[],
+        # "Gurobi dist" => Float64[],
         "HiGHS" => Float64[],
         "HiGHS dist" => Float64[],
-        "ISAL" => Float64[],
-        "ISAL dist" => Float64[],
+        # "ISAL" => Float64[],
+        # "ISAL dist" => Float64[],
     )
     for h in usehoc, b in binsearch, a in acceleration
         results[bpname(h, b, a)] = Float64[]
@@ -206,17 +206,17 @@ function run_benchmark(
         prob = readl1test(instance; rhs = rhs, mattype = mattype, acceltype = noaccel)
 
         # Linear programming
-        duration, dist = solve_with_LP(prob, :gurobi)
-        push!(results["Gurobi"], duration)
-        push!(results["Gurobi dist"], dist)
+        # duration, dist = solve_with_LP(prob, :gurobi)
+        # push!(results["Gurobi"], duration)
+        # push!(results["Gurobi dist"], dist)
         duration, dist = solve_with_LP(prob, :highs)
         push!(results["HiGHS"], duration)
         push!(results["HiGHS dist"], dist)
 
         # ISAL
-        duration, dist = solve_with_ISAL(prob)
-        push!(results["ISAL"], duration)
-        push!(results["ISAL dist"], dist)
+        # duration, dist = solve_with_ISAL(prob)
+        # push!(results["ISAL"], duration)
+        # push!(results["ISAL dist"], dist)
 
         if testnum % savestep == 0
             save_results(results, resfile)
@@ -229,14 +229,14 @@ function run_benchmark(
 end
 
 function run_benchmarks()
-    @info "Testset from Lorentz, Pfetsch, and Tillmann"
-    LPT_testset = glob("*.mat", datadir("exp_raw", "L1_Testset_mat"))
-    run_benchmark(LPT_testset, "LPT_benchmark.csv", 1, [false, true], [false, true], [noaccel])
+    # @info "Testset from Lorentz, Pfetsch, and Tillmann"
+    # LPT_testset = glob("*.mat", datadir("exp_raw", "L1_Testset_mat"))
+    # run_benchmark(LPT_testset, "LPT_benchmark.csv", 1, [false, true], [false, true], [noaccel])
 
     @info "Testset based on Lopes, Santos, and Silva"
     LSS_testset = glob("*.mat", datadir("exp_raw", "lassobp_mat"))
     for rhs = 1:4
-        run_benchmark(LSS_testset, "LSS_benchmark_CUDA_$rhs.csv", rhs, [true], [true], [CUDAaccel])
+        run_benchmark(LSS_testset, "LSS_benchmark_CUDA_$rhs.csv", rhs, [true], [true], [noaccel, CUDAaccel])
     end
 end
 
