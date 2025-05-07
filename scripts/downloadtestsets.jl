@@ -162,15 +162,15 @@ end
 
 "Download and unpack all testsets"
 function downloadtestsets()
-    # # Download testset from Lorentz, Pfetsch, and Tillmann
-    # testurl = "http://wwwopt.mathematik.tu-darmstadt.de/spear/software/L1_Comparison/SPEAR_L1_Testset_mat.zip"
-    # destdir = "L1_Testset_mat"
-    # dowload_l1testset(testurl, destdir)
+    # Download testset from Lorentz, Pfetsch, and Tillmann
+    testurl = "http://wwwopt.mathematik.tu-darmstadt.de/spear/software/L1_Comparison/SPEAR_L1_Testset_mat.zip"
+    destdir = "L1_Testset_mat"
+    dowload_l1testset(testurl, destdir)
 
-    # # Download and convert to BP format testset from Lopes, Santos e Silva
-    # testurl = "https://www.ime.unicamp.br/~pjssilva/data/lassobp_mat.zip"
-    # destdir = "lassobp_mat"
-    # dowload_l1testset(testurl, destdir)
+    # Download and convert to BP format testset from Lopes, Santos e Silva
+    testurl = "https://www.ime.unicamp.br/~pjssilva/data/lassobp_mat.zip"
+    destdir = "lassobp_mat"
+    dowload_l1testset(testurl, destdir)
 end
 
 if abspath(PROGRAM_FILE) == @__FILE__
