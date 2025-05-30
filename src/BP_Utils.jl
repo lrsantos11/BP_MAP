@@ -341,7 +341,7 @@ function heuristic_optimality_check(
             is_solution =
                 isapprox((norm_xSol_1 - dot(w, b)) / norm_xSol_1, zero(T), atol = tol)
             if solve_Axb && is_solution
-                return sparse(xSol), :success
+                return xSol, :success
             end
         end
         return xSol, :failure

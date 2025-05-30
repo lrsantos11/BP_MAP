@@ -43,6 +43,9 @@ export solveBP_MAP, affproxproj, affqrmumpsproj, affkrylovproj, affkktproj, affg
 include("BP_Utils.jl")
 include("MAP_Utils.jl")
 
+# include(datadir("third_party", "Parallel-Simplex-Projection", "src", "simplex_and_l1ball", "l1ball_wrap.jl"))
+include(datadir("third_party", "PCQK", "ParallelNewtonCQN.jl"))
+
 "Inf norm to use in relative accepatance criteria"
 norminf(x) = norm(x, Inf)
 
@@ -95,11 +98,17 @@ function solveBP_MAP(
     support = Int[]
     lowradius, upradius = dnorm2, norm(xMAP, 1)
     λ = 0.1
+    l1ballwsp = ParallelNewtonCQN.initialize_chunks(n, numthreads=Threads.nthreads())
     radius = dnorm2
     while !(solved || tired)
         verbose && @printf("%6d: ", it + 1)
-        BallL1 = IndBallL1(radius)
-        global Proj_BallL1 = x -> ProjectIndicator(BallL1, x)
+        if n < 10_000
+            BallL1 = IndBallL1(radius)
+            global Proj_BallL1 = x -> ProjectIndicator(BallL1, x)
+        else
+            global Proj_BallL1 = x -> ParallelNewtonCQN.l1ball_proj(x, r=radius, chunks=l1ballwsp)[1]
+        end
+
         zMAP, inner_it, inner_status = MAP(
             0.5 * (ProjAffine(zMAP) + Proj_BallL1(xMAP)),
             ProjAffine,

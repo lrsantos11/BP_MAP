@@ -236,7 +236,7 @@ function run_benchmarks()
     @info "Testset based on Lopes, Santos, and Silva"
     LSS_testset = glob("*.mat", datadir("exp_raw", "lassobp_mat"))
     for rhs = 1:4
-        run_benchmark(LSS_testset, "LSS_benchmark_CUDA_$rhs.csv", rhs, [true], [true], [CUDAaccel])
+        run_benchmark(LSS_testset, "LSS_benchmark_CUDA_$rhs.csv", rhs, [true], [true], [noaccel, CUDAaccel])
     end
 end
 
