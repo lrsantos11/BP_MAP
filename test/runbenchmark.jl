@@ -229,9 +229,9 @@ function run_benchmark(
 end
 
 function run_benchmarks()
-    # @info "Testset from Lorentz, Pfetsch, and Tillmann"
-    # LPT_testset = glob("*.mat", datadir("exp_raw", "L1_Testset_mat"))
-    # run_benchmark(LPT_testset, "LPT_benchmark.csv", 1, [false, true], [false, true], [noaccel])
+    @info "Testset from Lorentz, Pfetsch, and Tillmann"
+    LPT_testset = glob("*.mat", datadir("exp_raw", "L1_Testset_mat"))
+    run_benchmark(LPT_testset, "LPT_benchmark.csv", 1, [false, true], [false, true], [noaccel])
 
     @info "Testset based on Lopes, Santos, and Silva"
     LSS_testset = glob("*.mat", datadir("exp_raw", "lassobp_mat"))

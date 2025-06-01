@@ -36,7 +36,9 @@ using CUDA.CUSPARSE
 import ProximalOperators: IndBallL1, IndAffine
 #import Krylov: CgneSolver, cgne!, CgSolver, cg!, cg, statistics, MinaresSolver, minares!
 using Krylov
-using Gurobi, JuMP
+using Gurobi
+using JuMP
+using NewtonCQK
 
 export solveBP_MAP, affproxproj, affqrmumpsproj, affkrylovproj, affkktproj, affgurobiproj
 
@@ -44,7 +46,6 @@ include("BP_Utils.jl")
 include("MAP_Utils.jl")
 
 # include(datadir("third_party", "Parallel-Simplex-Projection", "src", "simplex_and_l1ball", "l1ball_wrap.jl"))
-include(datadir("third_party", "NewtonCQK", "NewtonCQK.jl"))
 
 "Inf norm to use in relative accepatance criteria"
 norminf(x) = norm(x, Inf)
@@ -98,17 +99,17 @@ function solveBP_MAP(
     support = Int[]
     lowradius, upradius = dnorm2, norm(xMAP, 1)
     λ = 0.1
-    l1ballwsp = NewtonCQK.initialize_chunks(n, numthreads=Threads.nthreads())
+    if n > 10_000
+        l1ballwsp = NewtonCQK.initialize_chunks(n, numthreads=Threads.nthreads())
+    else
+        l1ballwsp = NewtonCQK.initialize_chunks(n, numthreads=1)
+    end
+    pre_proj_balll1(x, r) = NewtonCQK.l1ball_proj(x, r=r, chunks=l1ballwsp)[1]
+ 
     radius = dnorm2
     while !(solved || tired)
         verbose && @printf("%6d: ", it + 1)
-        if n < 10_000
-            BallL1 = IndBallL1(radius)
-            global Proj_BallL1 = x -> ProjectIndicator(BallL1, x)
-        else
-            global Proj_BallL1 = x -> NewtonCQK.l1ball_proj(x, r=radius, chunks=l1ballwsp)[1]
-        end
-
+        global Proj_BallL1 = x -> pre_proj_balll1(x, radius)
         zMAP, inner_it, inner_status = MAP(
             0.5 * (ProjAffine(zMAP) + Proj_BallL1(xMAP)),
             ProjAffine,
