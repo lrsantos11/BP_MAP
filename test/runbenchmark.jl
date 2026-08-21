@@ -14,10 +14,18 @@ using CSV
 
 include(scriptsdir("BP_LP.jl"))
 using Gurobi
-const gurobi_env = Gurobi.Env()
+const gurobi_env = try
+    Gurobi.Env()
+catch e
+    @warn "Gurobi.Env() failed (license expired/unavailable?); Gurobi comparator will be skipped" exception = e
+    nothing
+end
 
 # Include the BP_ISAL1.jl scripts
 include(scriptsdir("BP_ISAL1.jl"))
+
+# Include the BP_L1Homotopy.jl scripts
+include(scriptsdir("BP_L1Homotopy.jl"))
 
 "Relative error assuming that b is not 0"
 function relerror(a, b)
@@ -85,14 +93,15 @@ function solve_with_BPMAP(prob, usehoc = false, binsearch = false)
     duration = solved ? duration : -duration
 
     @info @sprintf("Elapsed CPU time for BP_MAP %.4f s", duration)
-    return duration, dist
+    return duration, dist, it, inner_it
 end
 
 function solve_with_LP(prob, solvertype = :highs)
-    # LP solver, use Gurobi if avaliable.
+    # LP solver, use Gurobi if available (license required; falls back to HiGHS otherwise).
     solver_name = "LP ($solvertype) "
     @info solver_name * "-"^(70 - length(solver_name))
     if solvertype == :gurobi
+        gurobi_env === nothing && error("Gurobi is not available (see warning at startup)")
         lpsolver = () -> Gurobi.Optimizer(gurobi_env)
     else
         lpsolver = HiGHS.Optimizer
@@ -126,7 +135,26 @@ function solve_with_ISAL(prob)
     duration = solved ? duration : -duration
 
     @info @sprintf("Median = %.4f s", duration)
-    return duration, dist
+    return duration, dist, it_ISAL
+end
+
+function solve_with_L1Homotopy(prob, usehoc = false)
+    tol = 1.0e-6
+    solver_name = usehoc ? "L1Homotopy_HOC " : "L1Homotopy "
+    @info solver_name * "-"^(70 - length(solver_name))
+    @info "Elapsed CPU time for solving with L1Homotopy Solver"
+    xL1H, duration, it_L1H, status_L1H = solveBP_L1Homotopy(prob; usehoc = usehoc)
+    dist = dist2sol(xL1H, prob)
+    feasible = norm(prob.A * xL1H - prob.b, Inf) / max(norm(prob.b, Inf), 1.0) <= tol
+
+    # L1Homotopy has no native exit flag (unlike ISAL1's exfl); success is judged via
+    # feasibility+dist when running plain, or via the HOC :success/:failure verdict
+    # when usehoc=true (mirrors solve_with_BPMAP's own pattern).
+    solved = usehoc ? (status_L1H == :success) : (feasible && dist < tol)
+    duration = solved ? duration : -duration
+
+    @info @sprintf("Median = %.4f s", duration)
+    return duration, dist, it_L1H
 end
 
 function save_results(results, resfile)
@@ -164,16 +192,23 @@ function run_benchmark(
         "Problem" => String[],
         "M" => Int[],
         "N" => Int[],
-        "Gurobi" => Float64[],
-        "Gurobi dist" => Float64[],
         "HiGHS" => Float64[],
         "HiGHS dist" => Float64[],
         "ISAL" => Float64[],
         "ISAL dist" => Float64[],
+        "ISAL iters" => Int[],
+        "L1Homotopy" => Float64[],
+        "L1Homotopy dist" => Float64[],
+        "L1Homotopy iters" => Int[],
+        "L1Homotopy_HOC" => Float64[],
+        "L1Homotopy_HOC dist" => Float64[],
+        "L1Homotopy_HOC iters" => Int[],
     )
     for h in usehoc, b in binsearch, a in acceleration
         results[bpname(h, b, a)] = Float64[]
         results[bpname(h, b, a)*" dist"] = Float64[]
+        results[bpname(h, b, a)*" iters"] = Int[]
+        results[bpname(h, b, a)*" inner_iters"] = Int[]
     end
 
     testnum = 0
@@ -197,26 +232,36 @@ function run_benchmark(
         for h in usehoc, b in binsearch, a in acceleration
             prob = readl1test(instance; rhs = rhs, mattype = mattype, acceltype = a)
 
-            duration, dist = solve_with_BPMAP(prob, h, b)
+            duration, dist, it, inner_it = solve_with_BPMAP(prob, h, b)
             push!(results[bpname(h, b, a)], duration)
             push!(results[bpname(h, b, a)*" dist"], dist)
+            push!(results[bpname(h, b, a)*" iters"], it)
+            push!(results[bpname(h, b, a)*" inner_iters"], inner_it)
         end
 
         # Read problem again as GPU is not supported by LP or ISAL
         prob = readl1test(instance; rhs = rhs, mattype = mattype, acceltype = noaccel)
 
         # Linear programming
-        duration, dist = solve_with_LP(prob, :gurobi)
-        push!(results["Gurobi"], duration)
-        push!(results["Gurobi dist"], dist)
         duration, dist = solve_with_LP(prob, :highs)
         push!(results["HiGHS"], duration)
         push!(results["HiGHS dist"], dist)
 
         # ISAL
-        duration, dist = solve_with_ISAL(prob)
+        duration, dist, it_ISAL = solve_with_ISAL(prob)
         push!(results["ISAL"], duration)
         push!(results["ISAL dist"], dist)
+        push!(results["ISAL iters"], round(Int, it_ISAL))
+
+        # L1Homotopy (plain and HOC variants, mirroring the usehoc sweep for BP_MAP)
+        duration, dist, it_L1H = solve_with_L1Homotopy(prob, false)
+        push!(results["L1Homotopy"], duration)
+        push!(results["L1Homotopy dist"], dist)
+        push!(results["L1Homotopy iters"], round(Int, it_L1H))
+        duration, dist, it_L1H_hoc = solve_with_L1Homotopy(prob, true)
+        push!(results["L1Homotopy_HOC"], duration)
+        push!(results["L1Homotopy_HOC dist"], dist)
+        push!(results["L1Homotopy_HOC iters"], round(Int, it_L1H_hoc))
 
         if testnum % savestep == 0
             save_results(results, resfile)
