@@ -1,0 +1,47 @@
+diff --git a/Pursuits_Homotopy/BPDN_homotopy_function.m b/Pursuits_Homotopy/BPDN_homotopy_function.m
+index 284557a..4d4147f 100644
+--- a/Pursuits_Homotopy/BPDN_homotopy_function.m
++++ b/Pursuits_Homotopy/BPDN_homotopy_function.m
+@@ -173,7 +173,11 @@ while iter < maxiter
+     
+     % update support
+     update_supp;
+-    
++    if break_flag
++        total_time = cputime-t0;
++        break;
++    end
++
+     pk_old([gamma_xh; idelta]) = sign(pk_old([gamma_xh; idelta]))*epsilon;
+     
+     % update delx
+diff --git a/utils/update_supp.m b/utils/update_supp.m
+index aba56be..7e78524 100644
+--- a/utils/update_supp.m
++++ b/utils/update_supp.m
+@@ -1,4 +1,5 @@
+ % script to update support
++break_flag = 0;
+ if length(gamma_xh)==M && flag == 1
+     % swap an element... 
+     Ag = A(:,gamma_xh)'*A(:,idelta);
+@@ -46,7 +47,8 @@ if length(gamma_xh)==M && flag == 1
+         idelta = idelta_t; % To set its constraints.
+     else
+         disp('Fatal error');
+-        break;
++        break_flag = 1;
++        return;
+     end
+ else
+     if flag == 1
+@@ -65,7 +67,8 @@ else
+         outx_index = find(gamma_xh==idelta);
+         len_gamma = length(gamma_xh);
+         if len_gamma == 1
+-            break;
++            break_flag = 1;
++            return;
+         end
+         gamma_xh = [gamma_xh(1:outx_index-1); gamma_xh(outx_index+1:end); gamma_xh(outx_index)];
+         g_old = gamma_xh;

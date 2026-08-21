@@ -24,6 +24,9 @@ end
 # Include the BP_ISAL1.jl scripts
 include(scriptsdir("BP_ISAL1.jl"))
 
+# Include the BP_L1Homotopy.jl scripts
+include(scriptsdir("BP_L1Homotopy.jl"))
+
 "Relative error assuming that b is not 0"
 function relerror(a, b)
     return norm(a - b, Inf) / norm(b, Inf)
@@ -135,6 +138,25 @@ function solve_with_ISAL(prob)
     return duration, dist
 end
 
+function solve_with_L1Homotopy(prob, usehoc = false)
+    tol = 1.0e-6
+    solver_name = usehoc ? "L1Homotopy_HOC " : "L1Homotopy "
+    @info solver_name * "-"^(70 - length(solver_name))
+    @info "Elapsed CPU time for solving with L1Homotopy Solver"
+    xL1H, duration, it_L1H, status_L1H = solveBP_L1Homotopy(prob; usehoc = usehoc)
+    dist = dist2sol(xL1H, prob)
+    feasible = norm(prob.A * xL1H - prob.b, Inf) / max(norm(prob.b, Inf), 1.0) <= tol
+
+    # L1Homotopy has no native exit flag (unlike ISAL1's exfl); success is judged via
+    # feasibility+dist when running plain, or via the HOC :success/:failure verdict
+    # when usehoc=true (mirrors solve_with_BPMAP's own pattern).
+    solved = usehoc ? (status_L1H == :success) : (feasible && dist < tol)
+    duration = solved ? duration : -duration
+
+    @info @sprintf("Median = %.4f s", duration)
+    return duration, dist
+end
+
 function save_results(results, resfile)
     columns = [k for k in filter(x -> x ∉ ["Problem", "M", "N"], keys(results))]
     sort!(columns)
@@ -174,6 +196,10 @@ function run_benchmark(
         "HiGHS dist" => Float64[],
         "ISAL" => Float64[],
         "ISAL dist" => Float64[],
+        "L1Homotopy" => Float64[],
+        "L1Homotopy dist" => Float64[],
+        "L1Homotopy_HOC" => Float64[],
+        "L1Homotopy_HOC dist" => Float64[],
     )
     for h in usehoc, b in binsearch, a in acceleration
         results[bpname(h, b, a)] = Float64[]
@@ -218,6 +244,14 @@ function run_benchmark(
         duration, dist = solve_with_ISAL(prob)
         push!(results["ISAL"], duration)
         push!(results["ISAL dist"], dist)
+
+        # L1Homotopy (plain and HOC variants, mirroring the usehoc sweep for BP_MAP)
+        duration, dist = solve_with_L1Homotopy(prob, false)
+        push!(results["L1Homotopy"], duration)
+        push!(results["L1Homotopy dist"], dist)
+        duration, dist = solve_with_L1Homotopy(prob, true)
+        push!(results["L1Homotopy_HOC"], duration)
+        push!(results["L1Homotopy_HOC dist"], dist)
 
         if testnum % savestep == 0
             save_results(results, resfile)
