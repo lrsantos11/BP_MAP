@@ -14,7 +14,12 @@ using CSV
 
 include(scriptsdir("BP_LP.jl"))
 using Gurobi
-const gurobi_env = Gurobi.Env()
+const gurobi_env = try
+    Gurobi.Env()
+catch e
+    @warn "Gurobi.Env() failed (license expired/unavailable?); Gurobi comparator will be skipped" exception = e
+    nothing
+end
 
 # Include the BP_ISAL1.jl scripts
 include(scriptsdir("BP_ISAL1.jl"))
@@ -89,10 +94,11 @@ function solve_with_BPMAP(prob, usehoc = false, binsearch = false)
 end
 
 function solve_with_LP(prob, solvertype = :highs)
-    # LP solver, use Gurobi if avaliable.
+    # LP solver, use Gurobi if available (license required; falls back to HiGHS otherwise).
     solver_name = "LP ($solvertype) "
     @info solver_name * "-"^(70 - length(solver_name))
     if solvertype == :gurobi
+        gurobi_env === nothing && error("Gurobi is not available (see warning at startup)")
         lpsolver = () -> Gurobi.Optimizer(gurobi_env)
     else
         lpsolver = HiGHS.Optimizer
@@ -164,8 +170,6 @@ function run_benchmark(
         "Problem" => String[],
         "M" => Int[],
         "N" => Int[],
-        "Gurobi" => Float64[],
-        "Gurobi dist" => Float64[],
         "HiGHS" => Float64[],
         "HiGHS dist" => Float64[],
         "ISAL" => Float64[],
@@ -206,9 +210,6 @@ function run_benchmark(
         prob = readl1test(instance; rhs = rhs, mattype = mattype, acceltype = noaccel)
 
         # Linear programming
-        duration, dist = solve_with_LP(prob, :gurobi)
-        push!(results["Gurobi"], duration)
-        push!(results["Gurobi dist"], dist)
         duration, dist = solve_with_LP(prob, :highs)
         push!(results["HiGHS"], duration)
         push!(results["HiGHS dist"], dist)
