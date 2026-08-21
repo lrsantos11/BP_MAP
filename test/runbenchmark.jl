@@ -93,7 +93,7 @@ function solve_with_BPMAP(prob, usehoc = false, binsearch = false)
     duration = solved ? duration : -duration
 
     @info @sprintf("Elapsed CPU time for BP_MAP %.4f s", duration)
-    return duration, dist
+    return duration, dist, it, inner_it
 end
 
 function solve_with_LP(prob, solvertype = :highs)
@@ -135,7 +135,7 @@ function solve_with_ISAL(prob)
     duration = solved ? duration : -duration
 
     @info @sprintf("Median = %.4f s", duration)
-    return duration, dist
+    return duration, dist, it_ISAL
 end
 
 function solve_with_L1Homotopy(prob, usehoc = false)
@@ -154,7 +154,7 @@ function solve_with_L1Homotopy(prob, usehoc = false)
     duration = solved ? duration : -duration
 
     @info @sprintf("Median = %.4f s", duration)
-    return duration, dist
+    return duration, dist, it_L1H
 end
 
 function save_results(results, resfile)
@@ -196,14 +196,19 @@ function run_benchmark(
         "HiGHS dist" => Float64[],
         "ISAL" => Float64[],
         "ISAL dist" => Float64[],
+        "ISAL iters" => Int[],
         "L1Homotopy" => Float64[],
         "L1Homotopy dist" => Float64[],
+        "L1Homotopy iters" => Int[],
         "L1Homotopy_HOC" => Float64[],
         "L1Homotopy_HOC dist" => Float64[],
+        "L1Homotopy_HOC iters" => Int[],
     )
     for h in usehoc, b in binsearch, a in acceleration
         results[bpname(h, b, a)] = Float64[]
         results[bpname(h, b, a)*" dist"] = Float64[]
+        results[bpname(h, b, a)*" iters"] = Int[]
+        results[bpname(h, b, a)*" inner_iters"] = Int[]
     end
 
     testnum = 0
@@ -227,9 +232,11 @@ function run_benchmark(
         for h in usehoc, b in binsearch, a in acceleration
             prob = readl1test(instance; rhs = rhs, mattype = mattype, acceltype = a)
 
-            duration, dist = solve_with_BPMAP(prob, h, b)
+            duration, dist, it, inner_it = solve_with_BPMAP(prob, h, b)
             push!(results[bpname(h, b, a)], duration)
             push!(results[bpname(h, b, a)*" dist"], dist)
+            push!(results[bpname(h, b, a)*" iters"], it)
+            push!(results[bpname(h, b, a)*" inner_iters"], inner_it)
         end
 
         # Read problem again as GPU is not supported by LP or ISAL
@@ -241,17 +248,20 @@ function run_benchmark(
         push!(results["HiGHS dist"], dist)
 
         # ISAL
-        duration, dist = solve_with_ISAL(prob)
+        duration, dist, it_ISAL = solve_with_ISAL(prob)
         push!(results["ISAL"], duration)
         push!(results["ISAL dist"], dist)
+        push!(results["ISAL iters"], round(Int, it_ISAL))
 
         # L1Homotopy (plain and HOC variants, mirroring the usehoc sweep for BP_MAP)
-        duration, dist = solve_with_L1Homotopy(prob, false)
+        duration, dist, it_L1H = solve_with_L1Homotopy(prob, false)
         push!(results["L1Homotopy"], duration)
         push!(results["L1Homotopy dist"], dist)
-        duration, dist = solve_with_L1Homotopy(prob, true)
+        push!(results["L1Homotopy iters"], round(Int, it_L1H))
+        duration, dist, it_L1H_hoc = solve_with_L1Homotopy(prob, true)
         push!(results["L1Homotopy_HOC"], duration)
         push!(results["L1Homotopy_HOC dist"], dist)
+        push!(results["L1Homotopy_HOC iters"], round(Int, it_L1H_hoc))
 
         if testnum % savestep == 0
             save_results(results, resfile)
