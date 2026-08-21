@@ -51,8 +51,8 @@ function solveBP_L1Homotopy(
     kwargs...,
 )
     # Bring variables into scope
-    A = prob.A
-    b = prob.b
+    A = copy(prob.A)
+    b = copy(prob.b)
     _, n = size(A)
 
     xL1H = similar(b, n)
@@ -81,6 +81,16 @@ function solveBP_L1Homotopy(
             $matlab_time = toc;
             """
             push!(times, matlab_time)
+            # Recreate input to avoid leaks
+            mat"""
+            in = struct();
+            in.tau = $tau;
+            in.x_orig = zeros($n,1);
+            in.record = 0;
+            in.delx_mode = 'qr';
+            """
+            A = copy(prob.A)
+            b = copy(prob.b)
         end
     else
         push!(times, matlab_time)
