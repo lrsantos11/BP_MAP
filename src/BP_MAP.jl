@@ -98,9 +98,9 @@ function solveBP_MAP(
     lowradius, upradius = dnorm2, norm(xMAP, 1)
     λ = 0.1
     if n > 10_000
-        l1ballwsp = NewtonCQK.initialize_chunks(n, numthreads=Threads.nthreads())
+        l1ballwsp = NewtonCQK.initialize_chunks(n, nchunks=Threads.nthreads())
     else
-        l1ballwsp = NewtonCQK.initialize_chunks(n, numthreads=1)
+        l1ballwsp = NewtonCQK.initialize_chunks(n, nchunks=1)
     end
     pre_proj_balll1(x, r) = NewtonCQK.l1ball_proj(x, r=r, chunks=l1ballwsp)[1]
     radius = dnorm2
