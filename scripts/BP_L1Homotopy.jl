@@ -48,6 +48,10 @@ function solveBP_L1Homotopy(
                                     # to 0. However, if we use 10^-9 instead of 0, we get a
                                     # completely different picture... solves all instances with
                                     # high accuracy"); we use 1e-10, slightly more conservative
+    maxtime::AbstractFloat = 3600.0, # wall-clock budget, matching solveBP_ISAL1's time=3600
+                                    # and solveBP_MAP's timeout=3600. Enforced inside MATLAB by
+                                    # our patch: upstream has no time-based stopping criterion,
+                                    # and a hung mat"" call cannot be interrupted from Julia
     kwargs...,
 )
     # Bring variables into scope
@@ -64,15 +68,21 @@ function solveBP_L1Homotopy(
     in.x_orig = zeros($n,1);
     in.record = 0;
     in.delx_mode = 'qr';
+    in.maxtime = $maxtime;
     out_l1h = BPDN_homotopy_function($A, $b, in);
     $x = out_l1h.x_out;
     $it = out_l1h.iter;
+    $l1h_status = out_l1h.status;
     $matlab_time = toc;
     """
 
+    # Exit flag from the patched MATLAB routine: :solved when the homotopy path
+    # reached tau, otherwise :maxtime, :maxiter, :Te or :failed
+    status = Symbol(l1h_status)
+
     # median-of-repeats timing trick, same idea as solveBP_ISAL1
     times = Float64[]
-    if compute_time && matlab_time < 10
+    if compute_time && status == :solved && matlab_time < 10
         rounds = 10 ÷ matlab_time
         for _ = 1:rounds
             mat"""
@@ -88,6 +98,7 @@ function solveBP_L1Homotopy(
             in.x_orig = zeros($n,1);
             in.record = 0;
             in.delx_mode = 'qr';
+            in.maxtime = $maxtime;
             """
             A = copy(prob.A)
             b = copy(prob.b)
@@ -99,13 +110,17 @@ function solveBP_L1Homotopy(
     xL1H .= x
     it_total = it
 
-    status = :completed
-    if usehoc
+    # Polishing a timed-out / failed iterate is meaningless, so the solver's own
+    # exit flag is reported unchanged in that case and HOC is skipped
+    if usehoc && status == :solved
         xhoc, hocstatus = heuristic_optimality_check(xL1H, prob; δ = δ_HOC)
+        # Adopt the polished iterate only when HOC certifies it; a failed check
+        # keeps the homotopy solution and its :solved status rather than
+        # downgrading a good solve to :failure. Mirrors solve_with_BPMAP, which
+        # likewise keeps xMAP when its own HOC check does not succeed.
         if hocstatus == :success
-            xL1H = xhoc
+            xL1H, status = xhoc, hocstatus
         end
-        status = hocstatus
     end
 
     if verbose

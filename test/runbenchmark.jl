@@ -144,13 +144,17 @@ function solve_with_L1Homotopy(prob, usehoc = false)
     @info solver_name * "-"^(70 - length(solver_name))
     @info "Elapsed CPU time for solving with L1Homotopy Solver"
     xL1H, duration, it_L1H, status_L1H = solveBP_L1Homotopy(prob; usehoc = usehoc)
+    @info "L1Homotopy status is $status_L1H with $(it_L1H) iterations"
     dist = dist2sol(xL1H, prob)
     feasible = norm(prob.A * xL1H - prob.b, Inf) / max(norm(prob.b, Inf), 1.0) <= tol
 
-    # L1Homotopy has no native exit flag (unlike ISAL1's exfl); success is judged via
-    # feasibility+dist when running plain, or via the HOC :success/:failure verdict
-    # when usehoc=true (mirrors solve_with_BPMAP's own pattern).
-    solved = usehoc ? (status_L1H == :success) : (feasible && dist < tol)
+    # Upstream L1Homotopy has no exit flag (unlike ISAL1's exfl); our patch adds one, so
+    # a run that hit the wall-clock budget (:maxtime), ran out of homotopy steps (:maxiter)
+    # or broke down (:failed) is counted as unsolved. Otherwise the run counts as solved
+    # when HOC certified it (:success) or, failing that, when the homotopy path itself
+    # converged to a feasible and accurate point -- so a failed HOC polish never discards
+    # an otherwise good solve (mirrors solve_with_BPMAP's own pattern).
+    solved = status_L1H == :success || (status_L1H == :solved && feasible && dist < tol)
     duration = solved ? duration : -duration
 
     @info @sprintf("Median = %.4f s", duration)

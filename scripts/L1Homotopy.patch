@@ -1,20 +1,96 @@
 diff --git a/Pursuits_Homotopy/BPDN_homotopy_function.m b/Pursuits_Homotopy/BPDN_homotopy_function.m
-index 284557a..4d4147f 100644
+index 284557a..0b0ce57 100644
 --- a/Pursuits_Homotopy/BPDN_homotopy_function.m
 +++ b/Pursuits_Homotopy/BPDN_homotopy_function.m
-@@ -173,7 +173,11 @@ while iter < maxiter
+@@ -50,6 +50,9 @@ function out = BPDN_homotopy_function(A, y, in)
+ % fprintf('Rewrite this function to add qrupdate \n');
+ 
+ t0 = cputime;
++% wall-clock stamp for the maxtime budget; the tic(id)/toc(id) form is used so
++% that a bare tic elsewhere (e.g. in the calling script) cannot reset it
++tw0 = tic;
+ N = size(A,2);
+ M = size(A,1);
+ 
+@@ -62,6 +65,10 @@ maxiter = 4*N;
+ if isfield(in,'maxiter');
+     maxiter = in.maxiter;
+ end
++maxtime = inf;
++if isfield(in,'maxtime')
++    maxtime = in.maxtime;
++end
+ early_terminate = 0;
+ if isfield(in,'early_terminate')
+     early_terminate = in.early_terminate;
+@@ -103,7 +110,10 @@ if err_record
+     % obj = 1/2*norm(A*xk_1-y)^2+epsilon*norm(xk_1,1);
+ end
+ 
+-while iter < maxiter
++% only the exit through the while condition leaves status untouched; it is
++% disambiguated into 'maxiter'/'maxtime' after the loop
++status = 'maxiter';
++while iter < maxiter && toc(tw0) < maxtime
+     iter = iter+1;
+     % warning('off','MATLAB:divideByZero')
+     
+@@ -146,10 +156,12 @@ while iter < maxiter
+     if epsilon <= tau;
+         xk_1 = x_k + (epsilon_old-tau)*delx_vec;
+         total_time= cputime-t0;
++        status = 'solved';
+         break;
+     end
+     if length(gamma_xh) >= Te
+         total_time = cputime-t0;
++        status = 'Te';
+         break;
+     end
+     
+@@ -166,6 +178,7 @@ while iter < maxiter
+             xhat(gamma_x) = out;
+             if norm(y-A*xhat) < tau
+                 xk_1 = xhat;
++                status = 'solved';
+                 break;
+             end
+         end
+@@ -173,7 +186,12 @@ while iter < maxiter
      
      % update support
      update_supp;
 -    
 +    if break_flag
 +        total_time = cputime-t0;
++        status = 'failed';
 +        break;
 +    end
 +
      pk_old([gamma_xh; idelta]) = sign(pk_old([gamma_xh; idelta]))*epsilon;
      
      % update delx
+@@ -212,13 +230,19 @@ if err_record
+     error_table = [error_table; epsilon norm(xk_1-x_orig)/norm(x_orig) length(gamma_xh)];
+     % obj = [obj; 1/2*norm(A*xk_1-y)^2+epsilon*norm(xk_1,1)];
+ end
++if strcmp(status,'maxiter') && toc(tw0) >= maxtime
++    status = 'maxtime';
++end
+ total_iter = iter;
+ total_time = cputime-t0;
++total_walltime = toc(tw0);
+ 
+ out = [];
+ out.x_out = xk_1;
+ out.gamma = gamma_xh;
+ out.iter = total_iter;
+ out.time = total_time;
++out.walltime = total_walltime;
++out.status = status;
+ out.error_table = error_table;
+ % out.obj = obj;
+\ No newline at end of file
 diff --git a/utils/update_supp.m b/utils/update_supp.m
 index aba56be..7e78524 100644
 --- a/utils/update_supp.m
