@@ -42,9 +42,14 @@ function dist2sol(x, prob)
     return dist
 end
 
+# Support-thresholding tolerance for the heuristic optimality check (Lorenz et al.
+# 2015 §3.6). Shared by every solver that runs HOC, so that the comparison is not
+# skewed by one of them polishing at a different threshold.
+const TOL_HOC = 1.0e-10
+
 function solve_with_BPMAP(prob, usehoc = false, binsearch = false)
     itmax = 2000
-    tol, success_prec, tol_HOC = 1.0e-6, 1.0e-4, 1.0e-10
+    tol, success_prec, tol_HOC = 1.0e-6, 1.0e-4, TOL_HOC
 
     solver_name = bpname(usehoc, binsearch, noaccel) * " "
     @info solver_name * "-"^(70 - length(solver_name))
@@ -143,7 +148,8 @@ function solve_with_L1Homotopy(prob, usehoc = false)
     solver_name = usehoc ? "L1Homotopy_HOC " : "L1Homotopy "
     @info solver_name * "-"^(70 - length(solver_name))
     @info "Elapsed CPU time for solving with L1Homotopy Solver"
-    xL1H, duration, it_L1H, status_L1H = solveBP_L1Homotopy(prob; usehoc = usehoc)
+    xL1H, duration, it_L1H, status_L1H =
+        solveBP_L1Homotopy(prob; usehoc = usehoc, δ_HOC = TOL_HOC)
     @info "L1Homotopy status is $status_L1H with $(it_L1H) iterations"
     dist = dist2sol(xL1H, prob)
     feasible = norm(prob.A * xL1H - prob.b, Inf) / max(norm(prob.b, Inf), 1.0) <= tol

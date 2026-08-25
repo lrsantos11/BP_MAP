@@ -40,7 +40,8 @@ function solveBP_L1Homotopy(
     verbose::Bool = false,
     compute_time::Bool = true,
     usehoc::Bool = false,
-    δ_HOC::AbstractFloat = 1e-9,   # HOC support-thresholding tolerance (Lorenz et al. 2015 §3.6)
+    δ_HOC::AbstractFloat = 1e-10,  # HOC support-thresholding tolerance (Lorenz et al. 2015 §3.6);
+                                    # matches TOL_HOC in test/runbenchmark.jl
     tau::AbstractFloat = 1e-10,    # homotopy path stopping parameter, NOT δ_HOC (different
                                     # concept: Lorenz et al. 2015 §5.3 confirm tau=0 exactly is
                                     # degenerate for this implementation ("theory only guarantees
