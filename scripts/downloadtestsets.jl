@@ -71,7 +71,7 @@ function check_residual(A, b, threshold = 1.0e-10)
     # available a full factorization.
     if 8 * prod(size(A)) < Int(Sys.total_memory()) ÷ 4
         @info "Using factorization"
-        xsol = A \ b
+        xsol = Matrix(A) \ b
         resnorm = norm(A * xsol - b) / max(1.0, norm(b))
         solved = resnorm < threshold
     else
@@ -148,7 +148,7 @@ function getLasso2BP()
     testurl = "https://drive.usercontent.google.com/download?id=1T4gCmV9rJ86jzPhRZ6B7ERQVSbvdsagU&export=download&authuser=1&confirm=t&uuid=46a74bc8-6ae6-40f8-9e75-f25228b2796f&at=APZUnTVUk8zQ_rr4YwCrQwdySM60:1712342173600"
     destdir = "Data-Lasso"
     downloaded = dowload_l1testset(testurl, destdir)
-    if true #downloaded
+    if downloaded
         fullpath = datadir("exp_raw", destdir)
         for filename in readdir(fullpath; join = true)
             if occursin("C", filename)
