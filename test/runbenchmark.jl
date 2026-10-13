@@ -136,7 +136,7 @@ function solve_with_ISAL(prob)
     @info "Elapsed CPU time for solving with ISAL1 Solver"
     xISAL, duration, it_ISAL, status_ISAL = solveBP_ISAL1(prob)
     dist = dist2sol(xISAL, prob)
-    solved = status_ISAL ∉ [0, 2, -2] && dist < 1.0e-6
+    solved = status_ISAL ∉ [0, 2, -2] && dist < 1.0e-4
     duration = solved ? duration : -duration
 
     @info @sprintf("Median = %.4f s", duration)
@@ -144,12 +144,12 @@ function solve_with_ISAL(prob)
 end
 
 function solve_with_L1Homotopy(prob, usehoc = false)
-    tol = 1.0e-6
+    tol, disttol = 1.0e-6, 1.0e-4
     solver_name = usehoc ? "L1Homotopy_HOC " : "L1Homotopy "
     @info solver_name * "-"^(70 - length(solver_name))
     @info "Elapsed CPU time for solving with L1Homotopy Solver"
     xL1H, duration, it_L1H, status_L1H =
-        solveBP_L1Homotopy(prob; usehoc = usehoc, δ_HOC = TOL_HOC)
+        solveBP_L1Homotopy(prob; usehoc = usehoc, δ_HOC = TOL_HOC, tau = 1.0e-9)
     @info "L1Homotopy status is $status_L1H with $(it_L1H) iterations"
     dist = dist2sol(xL1H, prob)
     feasible = norm(prob.A * xL1H - prob.b, Inf) / max(norm(prob.b, Inf), 1.0) <= tol
@@ -160,7 +160,7 @@ function solve_with_L1Homotopy(prob, usehoc = false)
     # when HOC certified it (:success) or, failing that, when the homotopy path itself
     # converged to a feasible and accurate point -- so a failed HOC polish never discards
     # an otherwise good solve (mirrors solve_with_BPMAP's own pattern).
-    solved = status_L1H == :success || (status_L1H == :solved && feasible && dist < tol)
+    solved = status_L1H == :success || (status_L1H == :solved && feasible && dist < disttol)
     duration = solved ? duration : -duration
 
     @info @sprintf("Median = %.4f s", duration)

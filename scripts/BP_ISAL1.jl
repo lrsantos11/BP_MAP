@@ -62,10 +62,11 @@ function solveBP_ISAL1(
     xISAL = similar(b, num_cols)
     it_total = 0
     status = 0
+    # ISAL1 reads its options only as name/value pairs and silently ignores anything else
     mat"""
     tic
     % Initialization
-    [$x, $fval, $err, $exfl, $it] = ISAL1($A, $b, 1, -1, $displ, time=3600);
+    [$x, $fval, $err, $exfl, $it] = ISAL1($A, $b, 'useHOC', 1, 'dLBmode', -1, 'dspl', $displ, 'time', 3600);
     $matlab_time = toc; 
     """
 
@@ -77,7 +78,7 @@ function solveBP_ISAL1(
             mat"""
             tic
             % Initialization
-            [$x, $fval, $err, $exfl, $it] = ISAL1($A, $b, 1, -1, $displ, time=3600);
+            [$x, $fval, $err, $exfl, $it] = ISAL1($A, $b, 'useHOC', 1, 'dLBmode', -1, 'dspl', $displ, 'time', 3600);
             $matlab_time = toc; 
             """
             push!(times, matlab_time)
